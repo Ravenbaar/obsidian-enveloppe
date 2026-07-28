@@ -82,17 +82,15 @@ export const buildEmbedItems = (ctx: RenderContext): SettingDefinitionItem[] => 
 					}),
 					visible: () => embedSettings.attachments,
 				},
-				{
-					...stringListItems(ctx, {
-						heading: i18next.t("settings.embeds.unHandledObsidianExt.title"),
-						addItemName: i18next.t("common.add", { things: "extension" }),
-						values: embedSettings.unHandledObsidianExt,
-						save: () => ctx.plugin.saveSettings(),
-					}),
-					visible: () => embedSettings.attachments,
-				},
 			],
 		},
+		stringListItems(ctx, {
+			heading: i18next.t("settings.embeds.unHandledObsidianExt.title"),
+			addItemName: i18next.t("common.add", { things: "extension" }),
+			values: embedSettings.unHandledObsidianExt,
+			save: () => ctx.plugin.saveSettings(),
+			visible: () => embedSettings.attachments,
+		}),
 		{
 			name: i18next.t("settings.embed.transferMetaFile.title"),
 			cls: "enveloppe",

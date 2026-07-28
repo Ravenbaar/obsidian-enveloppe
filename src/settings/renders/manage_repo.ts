@@ -296,7 +296,8 @@ class ManageRepoPage extends SettingPage {
 				new SecretComponent(ctx.app, el)
 					.setValue(repo.tokenSecret ?? ctx.settings.github.tokenSecret)
 					.onChange(async (value) => {
-						repo.tokenSecret = value;
+						// Cleared secret: drop the override so the repo falls back to the default token.
+						repo.tokenSecret = value ?? undefined;
 						await save();
 					})
 			);

@@ -196,25 +196,25 @@ export const buildTextConversionItems = (ctx: RenderContext): SettingDefinitionI
 					name: i18next.t("settings.conversion.tags.title"),
 					desc: i18next.t("settings.conversion.tags.desc"),
 				},
-				stringListItems(ctx, {
-					heading: i18next.t("settings.conversion.tags.title"),
-					addItemName: i18next.t("common.add", { things: "field" }),
-					placeholder: Placeholder.FieldName,
-					values: textSettings.tags.fields,
-					save: () => ctx.plugin.saveSettings(),
-				}),
-				{
-					name: i18next.t("settings.conversion.tags.exclude.title"),
-					desc: i18next.t("settings.conversion.tags.exclude.desc"),
-				},
-				stringListItems(ctx, {
-					heading: i18next.t("settings.conversion.tags.exclude.title"),
-					addItemName: i18next.t("common.add", { things: "value" }),
-					placeholder: i18next.t("settings.conversion.tags.exclude.placeholder"),
-					values: textSettings.tags.exclude,
-					save: () => ctx.plugin.saveSettings(),
-				}),
 			],
 		},
+		stringListItems(ctx, {
+			heading: i18next.t("settings.conversion.tags.title"),
+			addItemName: i18next.t("common.add", { things: "field" }),
+			placeholder: Placeholder.FieldName,
+			values: textSettings.tags.fields,
+			save: () => ctx.plugin.saveSettings(),
+		}),
+		{
+			name: i18next.t("settings.conversion.tags.exclude.title"),
+			desc: i18next.t("settings.conversion.tags.exclude.desc"),
+		},
+		stringListItems(ctx, {
+			heading: i18next.t("settings.conversion.tags.exclude.title"),
+			addItemName: i18next.t("common.add", { things: "value" }),
+			placeholder: i18next.t("settings.conversion.tags.exclude.placeholder"),
+			values: textSettings.tags.exclude,
+			save: () => ctx.plugin.saveSettings(),
+		}),
 	];
 };

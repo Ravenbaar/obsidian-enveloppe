@@ -15,6 +15,10 @@ import type EnveloppePlugin from "src/main";
  * tag names…) — one row per entry, each with its own editable text field, add and
  * delete affordances. Replaces the older pattern of splitting a single
  * comma/newline-separated textarea into an array.
+ *
+ * A list is only valid at the top level of a page's `items` (a group's `items` accept
+ * settings and pages only), so it always renders outside the tab's own `containerEl`
+ * and has to re-declare the `enveloppe` CSS scope itself.
  */
 export function stringListItems(
 	ctx: RenderContext,
@@ -25,13 +29,16 @@ export function stringListItems(
 		placeholder?: string;
 		values: string[];
 		save: () => Promise<void> | void;
+		visible?: boolean | (() => boolean);
 	}
 ): SettingDefinitionList {
 	const { values } = options;
 	return {
 		type: "list",
+		cls: "enveloppe",
 		heading: options.heading,
 		emptyState: options.emptyState,
+		visible: options.visible,
 		addItem: {
 			name: options.addItemName,
 			action: () => {

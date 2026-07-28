@@ -49,23 +49,23 @@ export const buildPluginItems = (ctx: RenderContext): SettingDefinitionItem[] =>
 					},
 				},
 				{
-					name: i18next.t("settings.plugin.excludedFolder.title"),
-					desc: i18next.t("settings.plugin.excludedFolder.desc"),
-				},
-				stringListItems(ctx, {
-					heading: i18next.t("settings.plugin.excludedFolder.title"),
-					addItemName: i18next.t("common.add", { things: "folder" }),
-					placeholder: Placeholder.ExcludedFolder,
-					values: pluginSettings.excludedFolder,
-					save: () => ctx.plugin.saveSettings(),
-				}),
-				{
 					name: i18next.t("settings.plugin.set.title"),
 					desc: i18next.t("settings.plugin.set.desc"),
 					control: { type: "text", key: "plugin.setFrontmatterKey", placeholder: "Set" },
 				},
+				{
+					name: i18next.t("settings.plugin.excludedFolder.title"),
+					desc: i18next.t("settings.plugin.excludedFolder.desc"),
+				},
 			],
 		},
+		stringListItems(ctx, {
+			heading: i18next.t("settings.plugin.excludedFolder.title"),
+			addItemName: i18next.t("common.add", { things: "folder" }),
+			placeholder: Placeholder.ExcludedFolder,
+			values: pluginSettings.excludedFolder,
+			save: () => ctx.plugin.saveSettings(),
+		}),
 		{
 			type: "group",
 			cls: "enveloppe",
@@ -105,21 +105,6 @@ export const buildPluginItems = (ctx: RenderContext): SettingDefinitionItem[] =>
 					},
 				},
 				{
-					name: i18next.t("settings.plugin.copyLink.linkPathRemover.title"),
-					desc: i18next.t("settings.plugin.copyLink.linkPathRemover.desc"),
-					visible: () => pluginSettings.copyLink.enable,
-				},
-				{
-					...stringListItems(ctx, {
-						heading: i18next.t("settings.plugin.copyLink.linkPathRemover.title"),
-						addItemName: i18next.t("common.add", { things: "part" }),
-						placeholder: Placeholder.Docs,
-						values: pluginSettings.copyLink.removePart,
-						save: () => ctx.plugin.saveSettings(),
-					}),
-					visible: () => pluginSettings.copyLink.enable,
-				},
-				{
 					name: i18next.t("settings.plugin.copyLink.toUri.title"),
 					desc: i18next.t("settings.plugin.copyLink.toUri.desc"),
 					visible: () => pluginSettings.copyLink.enable,
@@ -143,8 +128,21 @@ export const buildPluginItems = (ctx: RenderContext): SettingDefinitionItem[] =>
 					visible: () => pluginSettings.copyLink.enable,
 					control: { type: "toggle", key: "plugin.copyLink.addCmd" },
 				},
+				{
+					name: i18next.t("settings.plugin.copyLink.linkPathRemover.title"),
+					desc: i18next.t("settings.plugin.copyLink.linkPathRemover.desc"),
+					visible: () => pluginSettings.copyLink.enable,
+				},
 			],
 		},
+		stringListItems(ctx, {
+			heading: i18next.t("settings.plugin.copyLink.linkPathRemover.title"),
+			addItemName: i18next.t("common.add", { things: "part" }),
+			placeholder: Placeholder.Docs,
+			values: pluginSettings.copyLink.removePart,
+			save: () => ctx.plugin.saveSettings(),
+			visible: () => pluginSettings.copyLink.enable,
+		}),
 		{
 			type: "list",
 			heading: i18next.t("settings.plugin.copyLink.applyRegex.title"),
