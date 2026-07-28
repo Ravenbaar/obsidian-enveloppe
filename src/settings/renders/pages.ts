@@ -128,6 +128,29 @@ export function buildRegexFilePathPage(ctx: RenderContext): SettingDefinitionPag
 						})();
 					},
 				},
+				onReorder: (oldIndex, newIndex) => {
+					void (async () => {
+						// `combined()` always renders title entries before path entries, so a
+						// drag must stay within whichever block it started in: a cross-block
+						// move can't be expressed by two arrays kept in title-then-path order.
+						const titleLength = upload.replaceTitle.length;
+						const oldInTitle = oldIndex < titleLength;
+						const newInTitle = newIndex < titleLength;
+						if (oldInTitle === newInTitle) {
+							const array = oldInTitle ? upload.replaceTitle : upload.replacePath;
+							const offset = oldInTitle ? 0 : titleLength;
+							const [moved] = array.splice(oldIndex - offset, 1);
+							array.splice(newIndex - offset, 0, moved);
+							await ctx.plugin.saveSettings();
+						}
+						// Obsidian documents `onReorder` as needing no rebuild, but a drag only
+						// moves the DOM node: `SettingGroup.settings` keeps its pre-drag order,
+						// and the delete button resolves its index through that array
+						// (`settings.indexOf(setting)`), so it would delete the wrong entry.
+						// Rebuilding resyncs it (and snaps a rejected cross-block drag back).
+						ctx.update();
+					})();
+				},
 				onDelete: (index) => {
 					void (async () => {
 						const list = combined();
@@ -188,6 +211,7 @@ export function buildRegexFilePathPage(ctx: RenderContext): SettingDefinitionPag
 							});
 						} else {
 							setting.addButton((button) => {
+								button.setDisabled(true);
 								button.buttonEl.addClass("disabled");
 								button.setButtonText(i18next.t("common.path.file"));
 							});
@@ -253,8 +277,9 @@ export function buildOverrideAttachmentsPage(ctx: RenderContext): SettingDefinit
 				el.appendChild(sanitizeHTMLToDom(explanation));
 			}),
 			{
+				// The page is already named after this list, so the group carries no heading.
+				cls: "enveloppe",
 				type: "list",
-				heading: i18next.t("settings.embed.overrides.modal.title"),
 				addItem: {
 					name: i18next.t("common.add", { things: "override" }),
 					action: () => {
@@ -268,6 +293,15 @@ export function buildOverrideAttachmentsPage(ctx: RenderContext): SettingDefinit
 							ctx.update();
 						})();
 					},
+				},
+				onReorder: (oldIndex, newIndex) => {
+					void (async () => {
+						const [moved] = embed.overrideAttachments.splice(oldIndex, 1);
+						embed.overrideAttachments.splice(newIndex, 0, moved);
+						await ctx.plugin.saveSettings();
+						// Required despite the docs saying otherwise — see `buildRegexFilePathPage`.
+						ctx.update();
+					})();
 				},
 				onDelete: (index) => {
 					void (async () => {
@@ -365,6 +399,8 @@ export function buildCensorTextPage(ctx: RenderContext): SettingDefinitionPage {
 						const [moved] = conversion.censorText.splice(oldIndex, 1);
 						conversion.censorText.splice(newIndex, 0, moved);
 						await ctx.plugin.saveSettings();
+						// Required despite the docs saying otherwise — see `buildRegexFilePathPage`.
+						ctx.update();
 					})();
 				},
 				onDelete: (index) => {

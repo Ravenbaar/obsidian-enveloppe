@@ -3,8 +3,8 @@ import { Placeholder } from "@interfaces/enum";
 import i18next from "i18next";
 import { SecretComponent, type SettingDefinitionItem } from "obsidian";
 import {
-	checkRepositoryValidity,
-	verifyRateLimitAPI,
+    checkRepositoryValidity,
+    verifyRateLimitAPI,
 } from "src/utils/data_validation_test";
 import type { RenderContext } from "./index";
 import { buildManageRepoPage } from "./manage_repo";
@@ -72,8 +72,10 @@ export const buildGithubItems = (ctx: RenderContext): SettingDefinitionItem[] =>
 					new SecretComponent(ctx.app, el)
 						.setValue(githubSettings.tokenSecret)
 						.onChange(async (value) => {
-							githubSettings.tokenSecret = value;
-							await ctx.plugin.saveSettings();
+							if (value) {
+								githubSettings.tokenSecret = value;
+								await ctx.plugin.saveSettings();
+							}
 						})
 				);
 			},
