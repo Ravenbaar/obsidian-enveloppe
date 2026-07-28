@@ -310,7 +310,7 @@ span.enveloppe.icons {
 	width: 100%;
 }
 
-.enveloppe.enveloppe.modals.regex.file-path-name .disabled {
+.enveloppe .disabled {
 	pointer-events: none;
 	opacity: 0.5;
 	font-style: italic;
