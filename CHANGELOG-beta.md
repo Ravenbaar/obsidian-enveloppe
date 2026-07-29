@@ -1,4 +1,13 @@
+## [8.0.0-1](https://github.com/Enveloppe/obsidian-enveloppe/compare/8.0.0-0...8.0.0-1) (2026-07-29)
+### Features
 
+* **settings:** use list & adjust style + reorder ([95a5da7](https://github.com/Enveloppe/obsidian-enveloppe/commit/95a5da758e0e7d786cdd29e4597eb0ff31dd8548))
+
+### Bug Fixes
+
+* **settings:** issue with list ([24f99b5](https://github.com/Enveloppe/obsidian-enveloppe/commit/24f99b51232338f10c8d507697a28455b7379227))
+* **style:** adjust style ([3d0ed98](https://github.com/Enveloppe/obsidian-enveloppe/commit/3d0ed98b9a3910ec5810cdfc2781ad90f629422d))
+* typescript type ([70586fb](https://github.com/Enveloppe/obsidian-enveloppe/commit/70586fb78225d8f802d3692b29ceb5474df523d5))
 ## [8.0.0-0](https://github.com/Enveloppe/obsidian-enveloppe/compare/7.8.2...8.0.0-0) (2026-07-10)
 ### Refactor
 * **refactor:** refactor settings for new obsidian major versions
