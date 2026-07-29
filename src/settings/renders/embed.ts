@@ -2,7 +2,7 @@ import { Placeholder } from "@interfaces/enum";
 import dedent from "dedent";
 import i18next from "i18next";
 import { type SettingDefinitionItem, sanitizeHTMLToDom } from "obsidian";
-import { type RenderContext, rawContent, stringListItems } from "./index";
+import { type RenderContext, rawContent, stringListPage } from "./index";
 import { buildOverrideAttachmentsPage } from "./pages";
 
 export const buildEmbedItems = (ctx: RenderContext): SettingDefinitionItem[] => {
@@ -74,30 +74,19 @@ export const buildEmbedItems = (ctx: RenderContext): SettingDefinitionItem[] => 
 					...buildOverrideAttachmentsPage(ctx),
 					visible: () => embedSettings.attachments,
 				},
-				{
-					...rawContent((el) => {
-						el.createEl("p", {
-							text: i18next.t("settings.embeds.unHandledObsidianExt.desc"),
-						});
-					}),
+				stringListPage(ctx, {
+					name: i18next.t("settings.embeds.unHandledObsidianExt.title"),
+					desc: i18next.t("settings.embeds.unHandledObsidianExt.desc"),
+					addItemName: i18next.t("common.add", { things: "extension" }),
+					values: embedSettings.unHandledObsidianExt,
+					save: () => ctx.plugin.saveSettings(),
 					visible: () => embedSettings.attachments,
-				},
+				}),
 			],
 		},
-		stringListItems(ctx, {
-			heading: i18next.t("settings.embeds.unHandledObsidianExt.title"),
-			addItemName: i18next.t("common.add", { things: "extension" }),
-			values: embedSettings.unHandledObsidianExt,
-			save: () => ctx.plugin.saveSettings(),
-			visible: () => embedSettings.attachments,
-		}),
-		{
+		stringListPage(ctx, {
 			name: i18next.t("settings.embed.transferMetaFile.title"),
-			cls: "enveloppe",
 			desc: i18next.t("settings.embed.transferMetaFile.desc"),
-		},
-		stringListItems(ctx, {
-			heading: i18next.t("settings.embed.transferMetaFile.title"),
 			addItemName: i18next.t("common.add", { things: "metadata field" }),
 			placeholder: Placeholder.Banner,
 			values: embedSettings.keySendFile,

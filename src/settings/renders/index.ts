@@ -6,6 +6,7 @@ import {
 	type Setting,
 	type SettingDefinition,
 	type SettingDefinitionList,
+	type SettingDefinitionPage,
 	type TextComponent,
 } from "obsidian";
 import type EnveloppePlugin from "src/main";
@@ -18,12 +19,13 @@ import type EnveloppePlugin from "src/main";
  *
  * A list is only valid at the top level of a page's `items` (a group's `items` accept
  * settings and pages only), so it always renders outside the tab's own `containerEl`
- * and has to re-declare the `enveloppe` CSS scope itself.
+ * and has to re-declare the `enveloppe` CSS scope itself. Prefer {@link stringListPage}
+ * over calling this directly.
  */
 export function stringListItems(
 	ctx: RenderContext,
 	options: {
-		heading: string;
+		heading?: string;
 		emptyState?: string;
 		addItemName: string;
 		placeholder?: string;
@@ -42,24 +44,46 @@ export function stringListItems(
 		addItem: {
 			name: options.addItemName,
 			action: () => {
-				values.push("");
-				void options.save();
-				ctx.update();
+				void (async () => {
+					values.push("");
+					await options.save();
+					ctx.update();
+				})();
 			},
 		},
-		onDelete: (index) => {
-			values.splice(index, 1);
-			void options.save();
-			ctx.update();
+		onReorder: (oldIndex, newIndex) => {
+			void (async () => {
+				const [moved] = values.splice(oldIndex, 1);
+				values.splice(newIndex, 0, moved);
+				await options.save();
+				// Obsidian documents `onReorder` as needing no rebuild, but a drag only moves
+				// the DOM node: `SettingGroup.settings` keeps its pre-drag order, and the
+				// delete button resolves its index through that array, so it would delete the
+				// wrong entry. Rebuilding also refreshes the indices each row writes back to.
+				ctx.update();
+			})();
 		},
-		items: values.map((value, index) => ({
+		onDelete: (index) => {
+			void (async () => {
+				values.splice(index, 1);
+				await options.save();
+				ctx.update();
+			})();
+		},
+		// Read `values[index]` inside `render` rather than capturing the string from
+		// `map`: definitions are built once per `update()` and replayed on every
+		// re-render (navigating back into the page, for one), so a captured string
+		// would resurrect the value the entry had when the definitions were last
+		// built and wipe out anything typed since. The other lists get this for free
+		// by holding an object reference, but strings are copied.
+		items: values.map((_, index) => ({
 			name: "",
 			searchable: false,
 			render: (setting) => {
 				setting.setClass("no-display").addText((text) => {
 					text
 						.setPlaceholder(options.placeholder ?? "")
-						.setValue(value)
+						.setValue(values[index])
 						.onChange(async (v) => {
 							values[index] = v;
 							await options.save();
@@ -67,6 +91,47 @@ export function stringListItems(
 				});
 			},
 		})),
+	};
+}
+
+/**
+ * Wraps a {@link stringListItems} list in its own navigable page, the way the regex
+ * lists in `pages.ts` are built.
+ *
+ * A list carries a `heading` but never a `desc`, so an inline list needs an inert
+ * setting row above it just to show its description — and then the title is rendered
+ * twice. A page entry carries both `name` and `desc`, so the list inside it needs no
+ * heading at all. Being a page also means it stays a valid `SettingGroupItem`, i.e. it
+ * can sit inside a `type: "group"` where a bare list cannot.
+ */
+export function stringListPage(
+	ctx: RenderContext,
+	options: {
+		name: string;
+		desc?: string | DocumentFragment;
+		emptyState?: string;
+		addItemName: string;
+		placeholder?: string;
+		values: string[];
+		save: () => Promise<void> | void;
+		visible?: boolean | (() => boolean);
+	}
+): SettingDefinitionPage {
+	return {
+		type: "page",
+		name: options.name,
+		desc: options.desc,
+		visible: options.visible,
+		items: [
+			// The page is already named after this list, so it carries no heading.
+			stringListItems(ctx, {
+				emptyState: options.emptyState,
+				addItemName: options.addItemName,
+				placeholder: options.placeholder,
+				values: options.values,
+				save: options.save,
+			}),
+		],
 	};
 }
 

@@ -2,7 +2,7 @@ import { Placeholder } from "@interfaces/enum";
 import dedent from "dedent";
 import i18next from "i18next";
 import { type SettingDefinitionItem, sanitizeHTMLToDom } from "obsidian";
-import { type RenderContext, rawContent, stringListItems } from "./index";
+import { type RenderContext, rawContent, stringListPage } from "./index";
 import { buildCensorTextPage } from "./pages";
 
 export const buildTextConversionItems = (ctx: RenderContext): SettingDefinitionItem[] => {
@@ -192,29 +192,23 @@ export const buildTextConversionItems = (ctx: RenderContext): SettingDefinitionI
 					desc: i18next.t("settings.conversion.tags.inlineTags.desc"),
 					control: { type: "toggle", key: "conversion.tags.inline" },
 				},
-				{
+				stringListPage(ctx, {
 					name: i18next.t("settings.conversion.tags.title"),
 					desc: i18next.t("settings.conversion.tags.desc"),
-				},
+					addItemName: i18next.t("common.add", { things: "field" }),
+					placeholder: Placeholder.FieldName,
+					values: textSettings.tags.fields,
+					save: () => ctx.plugin.saveSettings(),
+				}),
+				stringListPage(ctx, {
+					name: i18next.t("settings.conversion.tags.exclude.title"),
+					desc: i18next.t("settings.conversion.tags.exclude.desc"),
+					addItemName: i18next.t("common.add", { things: "value" }),
+					placeholder: i18next.t("settings.conversion.tags.exclude.placeholder"),
+					values: textSettings.tags.exclude,
+					save: () => ctx.plugin.saveSettings(),
+				}),
 			],
 		},
-		stringListItems(ctx, {
-			heading: i18next.t("settings.conversion.tags.title"),
-			addItemName: i18next.t("common.add", { things: "field" }),
-			placeholder: Placeholder.FieldName,
-			values: textSettings.tags.fields,
-			save: () => ctx.plugin.saveSettings(),
-		}),
-		{
-			name: i18next.t("settings.conversion.tags.exclude.title"),
-			desc: i18next.t("settings.conversion.tags.exclude.desc"),
-		},
-		stringListItems(ctx, {
-			heading: i18next.t("settings.conversion.tags.exclude.title"),
-			addItemName: i18next.t("common.add", { things: "value" }),
-			placeholder: i18next.t("settings.conversion.tags.exclude.placeholder"),
-			values: textSettings.tags.exclude,
-			save: () => ctx.plugin.saveSettings(),
-		}),
 	];
 };
