@@ -1,4 +1,3 @@
-import { ESettingsTabId } from "@interfaces";
 import type { EnveloppeSettings, Preset, RegexReplace } from "@interfaces/main";
 import type { GitHub, PluginBehavior } from "@interfaces/settings";
 import type { Octokit } from "@octokit/core";
@@ -14,6 +13,7 @@ import {
 	Setting,
 	TextAreaComponent,
 } from "obsidian";
+import type { ContentFile, ContentsResponseData } from "src/GitHub/octokit_types";
 import type Enveloppe from "src/main";
 import type { EnveloppeSettingsTab } from "src/settings";
 import { migrateSettings, type OldSettings } from "src/settings/migrate";
@@ -30,7 +30,6 @@ function censorData(settings: EnveloppeSettings, original: EnveloppeSettings) {
 	settings.github.repo = original.github.repo;
 	settings.github.user = original.github.user;
 	settings.github.otherRepo = original.github.otherRepo;
-	settings.tabsId = original.tabsId;
 	settings.plugin.copyLink.links = original.plugin.copyLink.links;
 	settings.github.tokenSecret = original.github.tokenSecret;
 }
@@ -43,19 +42,12 @@ function censorData(settings: EnveloppeSettings, original: EnveloppeSettings) {
 
 export class ImportModal extends Modal {
 	plugin: Enveloppe;
-	settingsPage: HTMLElement;
 	settingsTab: EnveloppeSettingsTab;
 	settings: EnveloppeSettings;
 	console: Logs;
-	constructor(
-		app: App,
-		plugin: Enveloppe,
-		settingsPage: HTMLElement,
-		settingsTab: EnveloppeSettingsTab
-	) {
+	constructor(app: App, plugin: Enveloppe, settingsTab: EnveloppeSettingsTab) {
 		super(app);
 		this.plugin = plugin;
-		this.settingsPage = settingsPage;
 		this.settingsTab = settingsTab;
 		this.settings = plugin.settings;
 		this.console = plugin.console;
@@ -75,7 +67,6 @@ export class ImportModal extends Modal {
 			.setDesc(i18next.t("modals.import.desc"));
 
 		new Setting(contentEl).then((setting) => {
-			// biome-ignore lint/correctness/noUndeclaredVariables: createSpan is a function builded with the plugin
 			const errorSpan = createSpan({
 				cls: "enveloppe-import-error",
 				text: i18next.t("modals.import.error.span"),
@@ -84,15 +75,15 @@ export class ImportModal extends Modal {
 			const importAndClose = async (str: string) => {
 				if (str) {
 					try {
-						let importedSettings = JSON.parse(str);
-						if (Object.keys(importedSettings).includes("editorMenu")) {
+						const parsed = JSON.parse(str) as Record<string, unknown>;
+						if (Object.keys(parsed).includes("editorMenu")) {
 							//need to convert old settings to new settings
-							const oldSettings = importedSettings as unknown as OldSettings;
+							const oldSettings = parsed as unknown as OldSettings;
 							await migrateSettings(oldSettings, this.plugin, true);
 							this.console.trace(i18next.t("informations.migrating.oldSettings"));
 						} else {
 							this.console.trace(i18next.t("informations.migrating.normalFormat"));
-							importedSettings = importedSettings as unknown as EnveloppeSettings;
+							const importedSettings = parsed as unknown as EnveloppeSettings;
 							//create a copy of actual settings
 							const actualSettings = klona(this.plugin.settings);
 							if (!(importedSettings.upload.replaceTitle instanceof Array)) {
@@ -101,17 +92,14 @@ export class ImportModal extends Modal {
 								];
 							}
 
-							for (const [key, value] of Object.entries(importedSettings)) {
-								// @ts-ignore
-								this.plugin.settings[key] = value;
-							}
+							Object.assign(this.plugin.settings, importedSettings);
 							await this.censorRepositoryData(actualSettings);
 							await this.plugin.saveSettings();
 						}
 						this.close();
 					} catch (e) {
 						errorSpan.addClass("active");
-						errorSpan.setText(`${i18next.t("modals.import.error.span")}${e}`);
+						errorSpan.setText(`${i18next.t("modals.import.error.span")}${String(e)}`);
 					}
 				} else {
 					errorSpan.addClass("active");
@@ -139,7 +127,7 @@ export class ImportModal extends Modal {
 						const reader = new FileReader();
 
 						reader.onload = async (e: ProgressEvent<FileReader>) => {
-							await importAndClose(e.target!.result!.toString().trim());
+							await importAndClose((e.target!.result as string).trim());
 						};
 
 						reader.readAsText((e.target as HTMLInputElement).files![0]);
@@ -173,33 +161,7 @@ export class ImportModal extends Modal {
 	onClose() {
 		const { contentEl } = this;
 		contentEl.empty();
-		this.settingsPage.empty();
-		let openedTab =
-			this.plugin.settings.tabsId ??
-			document.querySelector(".settings-tab.settings-tab-active .settings-tab-name")
-				?.textContent ??
-			i18next.t("settings.github.title");
-		openedTab = openedTab.trim();
-		switch (openedTab) {
-			case ESettingsTabId.Github:
-				this.settingsTab.renderGithubConfiguration();
-				break;
-			case ESettingsTabId.Upload:
-				this.settingsTab.renderUploadConfiguration();
-				break;
-			case ESettingsTabId.Text:
-				this.settingsTab.renderTextConversion();
-				break;
-			case ESettingsTabId.Embed:
-				this.settingsTab.renderEmbedConfiguration().then();
-				break;
-			case ESettingsTabId.Plugin:
-				this.settingsTab.renderPluginSettings();
-				break;
-			case ESettingsTabId.Help:
-				this.settingsTab.renderHelp();
-				break;
-		}
+		this.settingsTab.update();
 	}
 }
 
@@ -219,9 +181,6 @@ export class ExportModal extends Modal {
 		const cloneCensored = klona(censuredSettings);
 		const github: Partial<GitHub> | undefined = cloneCensored.github;
 		const plugin: Partial<PluginBehavior> | undefined = cloneCensored.plugin;
-		if (censuredSettings.tabsId) delete cloneCensored.tabsId;
-		//@ts-ignore
-		if (censuredSettings.tabsID) delete cloneCensored.tabsID;
 		if (github) {
 			delete github.repo;
 			delete github.user;
@@ -280,19 +239,22 @@ export class ExportModal extends Modal {
 							.then((textarea) => {
 								copyButton.addEventListener("click", (e) => {
 									e.preventDefault();
-
-									// Select the textarea contents and copy them to the clipboard
 									textarea.inputEl.select();
-									textarea.inputEl.setSelectionRange(0, 99999);
-									document.execCommand("copy");
-									copyButton.addClass("success");
 
-									setTimeout(() => {
-										// If the button is still in the dom, remove the success class
-										if (copyButton.parentNode) {
-											copyButton.removeClass("success");
-										}
-									}, 2000);
+									navigator.clipboard
+										.writeText(output)
+										.then(() => {
+											copyButton.addClass("success");
+											window.setTimeout(() => {
+												// If the button is still in the dom, remove the success class
+												if (copyButton.parentNode) {
+													copyButton.removeClass("success");
+												}
+											}, 2000);
+										})
+										.catch((err: unknown) => {
+											this.console.error(err as Error);
+										});
 								});
 							});
 						textArea.inputEl.addClass("enveloppe-export-textarea");
@@ -310,19 +272,13 @@ export class ExportModal extends Modal {
 					});
 				} else if (Platform.isMobile) {
 					setting.addButton((b) =>
-						b.setButtonText(i18next.t("modals.export.download")).onClick(() => {
+						b.setButtonText(i18next.t("modals.export.download")).onClick(async () => {
 							// Can't use the method above on mobile, so we'll just open a new tab
 							//create a temporary file
-							this.app.vault.adapter
-								.write(
-									`${this.app.vault.configDir}/plugins/obsidian-mkdocs-publisher/._tempSettings.json`,
-									output
-								)
-								.then();
+							const tempSettingsPath = `${this.app.vault.configDir}/plugins/obsidian-mkdocs-publisher/._tempSettings.json`;
+							await this.app.vault.adapter.write(tempSettingsPath, output);
 							//open the file with default application
-							(this.app as any).openWithDefaultApp(
-								`${this.app.vault.configDir}/plugins/obsidian-mkdocs-publisher/._tempSettings.json`
-							);
+							this.app.openWithDefaultApp(tempSettingsPath);
 						})
 					);
 				}
@@ -335,7 +291,9 @@ export class ExportModal extends Modal {
 				.trashSystem(
 					`${this.app.vault.configDir}/plugins/obsidian-mkdocs-publisher/._tempSettings.json`
 				)
-				.then();
+				.catch((e: unknown) => {
+					this.console.debug("Error while deleting temporary file", e);
+				});
 		} catch (e) {
 			this.console.debug("Error while deleting temporary file", e);
 		}
@@ -376,30 +334,25 @@ export class ImportLoadPreset extends FuzzySuggestModal<Preset> {
 		return item.name;
 	}
 
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	onChooseItem(item: Preset, _evt: MouseEvent | KeyboardEvent): void {
 		const presetSettings = item.settings;
 		try {
 			const original = klona(this.plugin.settings);
 
 			// noinspection SuspiciousTypeOfGuard
-			if (!(presetSettings.upload.replaceTitle instanceof Array)) {
-				presetSettings.upload.replaceTitle = [
-					presetSettings.upload.replaceTitle as RegexReplace,
-				];
+			const rawReplaceTitle = presetSettings.upload.replaceTitle as unknown;
+			if (!(rawReplaceTitle instanceof Array)) {
+				presetSettings.upload.replaceTitle = [rawReplaceTitle as RegexReplace];
 			}
 
-			for (const [key, value] of Object.entries(presetSettings)) {
-				// @ts-ignore
-				this.settings[key] = value;
-			}
+			Object.assign(this.settings, presetSettings);
 			censorData(this.settings, original);
 
-			this.plugin.saveSettings().then();
-			this.page.renderSettingsPage("github-configuration").then();
+			void this.plugin.saveSettings();
+			this.page.update();
 		} catch (e) {
 			new Notice(
-				i18next.t("modals.import.error.span") + e,
+				i18next.t("modals.import.error.span") + String(e),
 				this.settings.plugin.noticeLength
 			);
 			this.console.error(e as Error);
@@ -413,14 +366,14 @@ export async function loadAllPresets(
 ): Promise<Preset[]> {
 	//load from gitHub repository
 	try {
-		const githubPreset = await octokit.request(
+		const githubPreset = (await octokit.request(
 			"GET /repos/{owner}/{repo}/contents/{+path}",
 			{
 				owner: "ObsidianPublisher",
 				repo: "plugin-presets",
 				path: "presets",
 			}
-		);
+		)) as { data: ContentsResponseData };
 
 		//create a list
 		const presetList: Preset[] = [];
@@ -452,19 +405,18 @@ export async function loadPresetContent(
 	octokit: Octokit,
 	plugin: Enveloppe
 ): Promise<EnveloppeSettings> {
-	const presetContent = await octokit.request(
+	const presetContent = (await octokit.request(
 		"GET /repos/{owner}/{repo}/contents/{+path}",
 		{
 			owner: "Enveloppe",
 			repo: "plugin-presets",
 			path,
 		}
-	);
-	// @ts-ignore
-	if (!presetContent.data?.content) {
+	)) as { data: ContentsResponseData };
+	const data = presetContent.data as ContentFile;
+	if (!data?.content) {
 		return plugin.settings;
 	}
-	// @ts-ignore
-	const presetContentDecoded = atob(presetContent.data.content);
-	return JSON.parse(presetContentDecoded) as unknown as EnveloppeSettings;
+	const presetContentDecoded = atob(data.content);
+	return JSON.parse(presetContentDecoded) as EnveloppeSettings;
 }

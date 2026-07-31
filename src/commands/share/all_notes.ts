@@ -5,8 +5,8 @@ import {
 	type FrontMatterCache,
 	Notice,
 	Platform,
-	type TFile,
 	setIcon,
+	type TFile,
 } from "obsidian";
 import type { GithubBranch } from "src/GitHub/branch";
 import { deleteFromGithub } from "src/GitHub/delete";
@@ -43,7 +43,7 @@ export async function uploadAllNotesCallback(
 		callback: async () => {
 			await uploadAllNotes(plugin, repo, branchName);
 		},
-	} as Command;
+	};
 }
 /**
  * Command to share all the notes
@@ -178,7 +178,7 @@ export async function shareAllMarkedNotes(
 		}
 	} catch (error) {
 		plugin.console.trace(error);
-		const errorFrag = document.createDocumentFragment();
+		const errorFrag = createFragment();
 		const errorSpan = errorFrag.createSpan({
 			cls: ["error", "enveloppe", "icons", "notification"],
 		});

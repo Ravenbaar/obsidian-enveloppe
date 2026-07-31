@@ -2,7 +2,7 @@
 
 import type { Properties } from "@interfaces";
 import i18next from "i18next";
-import { type Notice, setIcon } from "obsidian";
+import { type Notice, sanitizeHTMLToDom, setIcon } from "obsidian";
 import type { Logs } from "./logs";
 // Credit : https://github.com/oleeskild/obsidian-digital-garden/ @oleeskild
 
@@ -51,12 +51,12 @@ export class ShareStatusBar {
 			nb: this.numberOfNotesToPublish,
 			type: typeAttachment,
 		});
-		this.icon = this.statusBarItem.createEl("span", {
+		this.icon = this.statusBarItem.createSpan({
 			cls: ["enveloppe", "icons"],
 		});
 		this.statusBarItem.addClass("found-attachments");
 		setIcon(this.icon, "search-check");
-		this.status = this.statusBarItem.createEl("span", { text: `${msg}` });
+		this.status = this.statusBarItem.createSpan({ text: `${msg}` });
 		this.status.addClass("found-attachments");
 		this.noticeMobile = this.console.noticeMobile("wait", "search-check", msg);
 	}
@@ -81,8 +81,8 @@ export class ShareStatusBar {
 		this.statusBarItem.addClass("sharing");
 		this.statusBarItem.removeClass("found-attachments");
 
-		if (!this.noticeMobile?.noticeEl?.children[0]?.classList?.contains("load")) {
-			setTimeout(() => {
+		if (!this.noticeMobile?.messageEl?.children[0]?.classList?.contains("load")) {
+			window.setTimeout(() => {
 				this.noticeMobile?.hide();
 			}, 4000);
 			this.noticeMobile = this.console.noticeMobile("load", "hourglass", msg);
@@ -96,7 +96,6 @@ export class ShareStatusBar {
 
 	finish(displayDurationMillisec: number) {
 		if (
-			// biome-ignore lint/correctness/noUndeclaredVariables: activeDocument is expected to be available in the runtime environment
 			activeDocument.querySelector(
 				".status-bar-item.plugin-obsidian-mkdocs-publisher.success"
 			)
@@ -126,10 +125,10 @@ export class ShareStatusBar {
 		if (this.isMainFile) this.statusBarItem.addClass("main-success");
 		this.statusBarItem.removeClass("sharing");
 		this.noticeMobile?.hide();
-		setTimeout(() => {
+		window.setTimeout(() => {
 			this.statusBarItem.remove();
 		}, displayDurationMillisec);
-		setTimeout(() => {
+		window.setTimeout(() => {
 			this.noticeMobile?.hide();
 		}, displayDurationMillisec - 4000);
 	}
@@ -143,12 +142,15 @@ export class ShareStatusBar {
 		this.statusBarItem.removeClass("sharing");
 		this.statusBarItem.removeClass("found-attachments");
 		setIcon(this.icon, "mail-warning");
-		this.status.innerHTML = i18next.t("error.errorPublish", { repo: prop });
+		this.status.empty();
+		this.status.appendChild(
+			sanitizeHTMLToDom(i18next.t("error.errorPublish", { repo: prop }))
+		);
 		this.noticeMobile?.hide();
-		setTimeout(() => {
+		window.setTimeout(() => {
 			this.statusBarItem.remove();
 		}, 8000);
-		setTimeout(() => {
+		window.setTimeout(() => {
 			this.noticeMobile?.hide();
 		}, 4000);
 	}

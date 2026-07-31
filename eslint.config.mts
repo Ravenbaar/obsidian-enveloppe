@@ -1,7 +1,7 @@
+import * as path from "node:path";
 import { defineConfig, globalIgnores } from "eslint/config";
 import obsidianmd from "eslint-plugin-obsidianmd";
 import globals from "globals";
-import * as path from "node:path";
 
 const rootDir = path.resolve("./");
 
@@ -23,6 +23,7 @@ export default defineConfig([
 	...obsidianmd.configs.recommended,
 	globalIgnores([
 		"node_modules",
+		".obsidian-cache",
 		"dist",
 		"esbuild.config.mjs",
 		"eslint.config.js",
@@ -31,6 +32,9 @@ export default defineConfig([
 		"main.js",
 		"*.json",
 		"eslint.config.mts",
-		"wdio.conf.mts"
+		"wdio.conf.mts",
+		"commit-and-tag-version.mjs",
+		"hooks/*.mjs",
+		"vitest.config.mts",
 	]),
 ]);

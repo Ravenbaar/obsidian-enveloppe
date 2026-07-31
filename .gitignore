@@ -33,3 +33,12 @@ act.json
 tokens.json
 logs.txt
 *.zip
+
+# vitest
+coverage/
+
+# wdio-obsidian-service
+.obsidian-cache/
+wdio-logs/
+allure-results/
+obsidian-versions-lock.txt

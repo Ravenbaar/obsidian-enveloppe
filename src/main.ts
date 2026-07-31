@@ -50,7 +50,7 @@ import { Logs } from "./utils/logs";
  */
 
 export default class Enveloppe extends Plugin {
-	settings!: EnveloppeSettings;
+	declare settings: EnveloppeSettings;
 	branchName: string = "";
 	repositoryFrontmatter: SetRepositoryFrontmatter = {};
 	console!: Logs;
@@ -168,7 +168,6 @@ export default class Enveloppe extends Plugin {
 			}
 			if (secret) return secret;
 		}
-		/** @legacy for old version, will be removed in the future **/
 		const tokenPath = createTokenPath(this, this.settings.github.tokenPath);
 
 		const tokenFileExists = await this.app.vault.adapter.exists(`${tokenPath}`);
@@ -178,8 +177,13 @@ export default class Enveloppe extends Plugin {
 		try {
 			const tokenFile = await this.app.vault.adapter.read(`${tokenPath}`);
 			if (tokenPath.endsWith(".json")) {
-				const tokenJson = JSON.parse(tokenFile);
-				const defaultToken = tokenJson.GITHUB_PUBLISHER_TOKEN;
+				const tokenJson = JSON.parse(tokenFile) as {
+					// biome-ignore lint/style/useNamingConvention: it's a constant
+					GITHUB_PUBLISHER_TOKEN?: string;
+					// biome-ignore lint/style/useNamingConvention: it's a constant
+					GITHUB_PUBLISHER_REPOS?: Record<string, string>;
+				};
+				const defaultToken = tokenJson.GITHUB_PUBLISHER_TOKEN ?? "";
 				if (repo) return tokenJson.GITHUB_PUBLISHER_REPOS?.[repo] ?? defaultToken;
 				return defaultToken;
 			}
@@ -313,7 +317,7 @@ export default class Enveloppe extends Plugin {
 		this.registerEvent(
 			this.app.workspace.on("file-menu", (menu: Menu, folder: TAbstractFile) => {
 				if (this.settings.plugin.fileMenu && folder instanceof TFolder) {
-					addMenuFolder(menu, folder, this.branchName, this);
+					void addMenuFolder(menu, folder, this.branchName, this);
 				} else if (folder instanceof TFile) {
 					addMenuFile(this, folder, this.branchName, menu);
 				}
@@ -359,15 +363,19 @@ export default class Enveloppe extends Plugin {
 		window.addEventListener("error", this.errorListener);
 	}
 
-	unhandledRejectionListener(e: PromiseRejectionEvent) {
+	unhandledRejectionListener = (e: PromiseRejectionEvent) => {
 		if (!this.manifest?.id) return;
-		if (e?.reason?.stack?.includes(this.manifest.id)) this.console.writeToLog(e, "fatal");
-	}
+		const reason: unknown = e.reason;
+		const stack = reason instanceof Error ? reason.stack : undefined;
+		if (stack?.includes(this.manifest.id)) this.console.writeToLog(e, "fatal");
+	};
 
-	errorListener(e: ErrorEvent) {
+	errorListener = (e: ErrorEvent) => {
 		if (!this.manifest?.id) return;
-		if (e?.error?.stack?.includes(this.manifest.id)) this.console.writeToLog(e, "error");
-	}
+		const error: unknown = e.error;
+		const stack = error instanceof Error ? error.stack : undefined;
+		if (stack?.includes(this.manifest.id)) this.console.writeToLog(e, "error");
+	};
 
 	/**
 	 * Called when the plugin is disabled
@@ -385,14 +393,21 @@ export default class Enveloppe extends Plugin {
 	 * If the deep merge fails, I use the default method
 	 */
 	async loadSettings() {
-		const loadedData = await this.loadData();
+		const loadedData = (await this.loadData()) as Partial<EnveloppeSettings> | null;
 		try {
-			this.settings = merge(DEFAULT_SETTINGS, loadedData) as unknown as EnveloppeSettings;
-		} catch (_e) {
+			this.settings = merge(
+				DEFAULT_SETTINGS,
+				loadedData ?? {}
+			) as unknown as EnveloppeSettings;
+		} catch {
 			console.warn(
 				"[Obsidian Enveloppe] Error while deep merging settings, using default loading method"
 			);
-			this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+			this.settings = Object.assign(
+				{},
+				DEFAULT_SETTINGS,
+				loadedData ?? {}
+			) as EnveloppeSettings;
 		}
 	}
 

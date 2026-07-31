@@ -78,7 +78,7 @@
 		},
 		"includes": [
 			"**",
-			"!**/npm node_modules",
+			"!**/node_modules",
 			"!**/build",
 			"!**/dist",
 			"!**/src/i18n/locales"
@@ -108,6 +108,15 @@
 		"lineWidth": 90
 	},
 	"javascript": {
+		"globals": [
+			"createEl",
+			"createDiv",
+			"createSpan",
+			"createFragment",
+			"activeWindow",
+			"activeDocument",
+			"sleep"
+		],
 		"formatter": {
 			"quoteStyle": "double",
 			"semicolons": "always",

@@ -8,13 +8,14 @@ import {
 	type Repository,
 } from "@interfaces";
 import type { Octokit } from "@octokit/core";
+import type { RequestError } from "@octokit/request-error";
 import i18next from "i18next";
 import {
 	type FrontMatterCache,
 	Notice,
+	normalizePath,
 	type TFile,
 	type TFolder,
-	normalizePath,
 } from "obsidian";
 import type { GithubBranch } from "src/GitHub/branch";
 import type Enveloppe from "src/main";
@@ -61,10 +62,10 @@ export function isInternalShared(
 		properties.repository?.shareKey || properties.plugin.settings.plugin.shareKey;
 	if (
 		frontmatter?.[shareKey] == null ||
-		["false", "0", "no"].includes(frontmatter[shareKey].toString().toLowerCase())
+		["false", "0", "no"].includes(String(frontmatter[shareKey]).toLowerCase())
 	)
 		return false;
-	return ["true", "1", "yes"].includes(frontmatter[shareKey].toString().toLowerCase());
+	return ["true", "1", "yes"].includes(String(frontmatter[shareKey]).toLowerCase());
 }
 /**
  * Retrieves the shared key for a repository based on the provided settings, app, frontmatter, and file.
@@ -123,11 +124,11 @@ export function isShared(
 			meta == null ||
 			meta?.[shareKey] == null ||
 			isExcludedPath(settings, file, otherRepo) ||
-			["false", "0", "no"].includes(meta[shareKey].toString().toLowerCase())
+			["false", "0", "no"].includes(String(meta[shareKey]).toLowerCase())
 		) {
 			return false;
 		}
-		const shareKeyInFrontmatter: string = meta[shareKey].toString().toLowerCase();
+		const shareKeyInFrontmatter: string = String(meta[shareKey]).toLowerCase();
 		return ["true", "1", "yes"].includes(shareKeyInFrontmatter);
 	} else if (settings.plugin.shareAll?.enable || otherRepoWithShareAll.length > 0) {
 		const allExcludedFileName = otherRepoWithShareAll.map(
@@ -498,7 +499,7 @@ export function defaultRepo(settings: EnveloppeSettings): Repository {
 export async function verifyToken(octokit: Octokit, owner: string) {
 	try {
 		await octokit.request("GET /user");
-	} catch (_e) {
+	} catch {
 		throw new EnveloppeErrors(i18next.t("commands.checkValidity.errorToken", { owner }), {
 			cause: "invalid token",
 		});
@@ -550,14 +551,16 @@ export async function verifyRateLimitAPI(
 		return remaining;
 	} catch (error) {
 		//if the error is 404 and user use enterprise, it's normal
+		const requestError = error as RequestError;
 		if (
-			(error as any).status === 404 &&
+			requestError.status === 404 &&
 			settings.github.api.tiersForApi === GithubTiersVersion.Entreprise &&
-			(error as any).response.data.message === "Rate limiting is not enabled." &&
-			(error as any).name === "HttpError"
+			(requestError.response?.data as { message?: string })?.message ===
+				"Rate limiting is not enabled." &&
+			requestError.name === "HttpError"
 		)
 			return 5000;
-		else if ((error as any).status !== 401) plugin.console.error(error as Error);
+		else if (requestError.status !== 401) plugin.console.error(error as Error);
 		return 0;
 	}
 }

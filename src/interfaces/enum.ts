@@ -9,15 +9,6 @@ export enum TypeOfEditRegex {
 	Title = "title",
 }
 
-export enum ESettingsTabId {
-	Github = "github-configuration",
-	Upload = "upload-configuration",
-	Text = "text-conversion",
-	Embed = "embed-configuration",
-	Plugin = "plugin-settings",
-	Help = "help",
-}
-
 /**
  * Allow to set a value for the folder settings
  * @enum FolderSettings
@@ -38,4 +29,20 @@ export enum FolderSettings {
 export enum GithubTiersVersion {
 	Free = "Github Free/Pro/Team (default)",
 	Entreprise = "Enterprise",
+}
+
+export enum Placeholder {
+	Smartkey = "smartkey",
+	Main = "main",
+	Ci = "ci",
+	Share = "share",
+	Docs = "docs",
+	Regex = "regex",
+	FolderImage = "docs/images",
+	Format = "py, mdx",
+	Banner = "banner",
+	ExcludedFolder = "_assets, Archive, /^_(.*)/gi",
+	FieldName = "field_name",
+	AutoCleanFolder = "docs/assets/js, docs/assets/logo, /\\.js$/",
+	Merge = "[PUBLISHER] MERGE",
 }

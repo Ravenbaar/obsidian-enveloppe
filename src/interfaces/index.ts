@@ -1,12 +1,7 @@
 //export interface in a file to prevent breaking & allow to easily find the interface
 
 import { DEFAULT_SETTINGS, FIND_REGEX, TOKEN_PATH } from "src/interfaces/constant";
-import {
-	ESettingsTabId,
-	FolderSettings,
-	GithubTiersVersion,
-	TypeOfEditRegex,
-} from "src/interfaces/enum";
+import { FolderSettings, GithubTiersVersion, TypeOfEditRegex } from "src/interfaces/enum";
 import type {
 	Deleted,
 	ListEditedFiles,
@@ -33,16 +28,6 @@ import type {
 } from "src/interfaces/properties";
 import type { MetadataExtractor } from "src/interfaces/settings";
 
-export {
-	DEFAULT_SETTINGS,
-	ESettingsTabId,
-	FIND_REGEX,
-	FolderSettings,
-	GithubTiersVersion,
-	TOKEN_PATH,
-	TypeOfEditRegex,
-};
-
 export type {
 	Deleted,
 	EnveloppeSettings,
@@ -63,4 +48,12 @@ export type {
 	SetRepositoryFrontmatter,
 	TextCleaner,
 	UploadedFiles,
+};
+export {
+	DEFAULT_SETTINGS,
+	FIND_REGEX,
+	FolderSettings,
+	GithubTiersVersion,
+	TOKEN_PATH,
+	TypeOfEditRegex,
 };

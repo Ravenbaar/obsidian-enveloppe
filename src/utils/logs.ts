@@ -3,11 +3,11 @@ import i18next from "i18next";
 import {
 	type App,
 	Notice,
-	Platform,
-	TFile,
 	normalizePath,
+	Platform,
 	sanitizeHTMLToDom,
 	setIcon,
+	TFile,
 } from "obsidian";
 import type Publisher from "../GitHub/upload";
 import type Enveloppe from "../main";
@@ -36,7 +36,7 @@ export class Logs {
 			if (error instanceof Error && error.message) {
 				return error.message;
 			}
-			const parsedError = JSON.parse(JSON.stringify(error));
+			const parsedError = JSON.parse(JSON.stringify(error)) as unknown;
 			if (Array.isArray(parsedError)) {
 				return parsedError.join(", ");
 			}
@@ -94,7 +94,7 @@ export class Logs {
 	}
 
 	info(...messages: unknown[]) {
-		console.info(...messages);
+		console.debug(...messages);
 		this.notif(messages);
 		this.writeToLog(messages, "info");
 	}
@@ -109,7 +109,7 @@ export class Logs {
 
 	trace(...messages: unknown[]) {
 		if (this.plugin.settings.plugin?.dev) {
-			console.trace(...messages);
+			console.debug(...messages);
 			this.notif(messages);
 			this.writeToLog(messages, "debug");
 		}
@@ -117,7 +117,7 @@ export class Logs {
 
 	silly(...messages: unknown[]) {
 		if (this.plugin.settings.plugin?.dev) {
-			console.log(...messages);
+			console.debug(...messages);
 			this.notif(messages);
 			this.writeToLog(messages, "silly");
 		}
@@ -139,22 +139,24 @@ export class Logs {
 		if (!Platform.isMobile) {
 			return;
 		}
-		const noticeFrag = document.createDocumentFragment();
-		const span = noticeFrag.createEl("span", {
+		const noticeFrag = createFragment();
+		const span = noticeFrag.createSpan({
 			text: message,
 			cls: ["enveloppe", cls, "icons"],
 		});
 		setIcon(span, icon);
-		noticeFrag.createEl("span", {
-			cls: ["enveloppe", cls, "notification"],
-		}).innerHTML = message;
+		noticeFrag
+			.createSpan({
+				cls: ["enveloppe", cls, "notification"],
+			})
+			.appendChild(sanitizeHTMLToDom(message));
 		return new Notice(noticeFrag, this.noticeLength);
 	}
 
 	noticeErrorUpload(properties: Properties | Properties[]) {
 		const repo = Array.isArray(properties) ? properties : [properties];
 		for (const repository of repo) {
-			const notif = document.createDocumentFragment();
+			const notif = createFragment();
 			const notifSpan = notif.createSpan({
 				cls: ["error", "enveloppe", "icons", "notification"],
 			});
@@ -172,7 +174,7 @@ export class Logs {
 	}
 
 	noticeSuccess(message: string) {
-		const notif = document.createDocumentFragment();
+		const notif = createFragment();
 		const notifSpan = notif.createSpan({
 			cls: ["success", "enveloppe", "icons", "notification"],
 		});
@@ -187,7 +189,7 @@ export class Logs {
 	}
 
 	noticeError(message: string) {
-		const notif = document.createDocumentFragment();
+		const notif = createFragment();
 		const notifSpan = notif.createSpan({
 			cls: ["error", "enveloppe", "icons", "notification"],
 		});
@@ -208,7 +210,7 @@ export class Logs {
 		prop: Properties
 	): Promise<void> {
 		const noticeValue = file instanceof TFile ? `"${file.basename}"` : file;
-		const docSuccess = document.createDocumentFragment();
+		const docSuccess = createFragment();
 		const successMsg =
 			file instanceof String
 				? i18next.t("informations.successfulPublish", {
@@ -219,20 +221,22 @@ export class Logs {
 						file: noticeValue,
 						repo: prop,
 					});
-		const span = docSuccess.createEl("span", {
+		const span = docSuccess.createSpan({
 			text: successMsg,
 			cls: ["enveloppe", "success", "icons"],
 		});
 		setIcon(span, "mail-check");
-		docSuccess.createEl("span", {
-			cls: ["enveloppe", "success", "notification"],
-		}).innerHTML = successMsg;
+		docSuccess
+			.createSpan({
+				cls: ["enveloppe", "success", "notification"],
+			})
+			.appendChild(sanitizeHTMLToDom(successMsg));
 		if (settings.github.workflow.name.length === 0) {
 			new Notice(docSuccess, settings.plugin.noticeLength);
 			return;
 		}
-		const workflowSuccess = document.createDocumentFragment();
-		const WorkflowSpan = workflowSuccess.createEl("span", {
+		const workflowSuccess = createFragment();
+		const WorkflowSpan = workflowSuccess.createSpan({
 			text: i18next.t("informations.successfulPublish", {
 				nbNotes: noticeValue,
 				repo: prop,
@@ -240,12 +244,15 @@ export class Logs {
 			cls: ["enveloppe", "wait", "icons"],
 		});
 		setIcon(WorkflowSpan, "hourglass");
-		workflowSuccess.createEl("span", {
-			cls: ["enveloppe", "wait", "notification"],
-		}).innerHTML = `${i18next.t("informations.sendMessage", {
+		const waitingMessage = `${i18next.t("informations.sendMessage", {
 			nbNotes: noticeValue,
 			repo: prop,
 		})}.<br>${i18next.t("informations.waitingWorkflow")}`;
+		workflowSuccess
+			.createSpan({
+				cls: ["enveloppe", "wait", "notification"],
+			})
+			.appendChild(sanitizeHTMLToDom(waitingMessage));
 		new Notice(workflowSuccess, PublisherManager.settings.plugin.noticeLength);
 		const successWorkflow = await PublisherManager.workflowGestion(prop);
 		if (successWorkflow) {
