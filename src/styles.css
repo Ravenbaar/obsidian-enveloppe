@@ -480,3 +480,10 @@ span.enveloppe.icons svg.lucide-hourglass {
 .status-bar-item.plugin-obsidian-mkdocs-publisher svg.lucide-loader {
 	animation: hourglassRotation 1s linear infinite;
 }
+/* Publication center uses the active Obsidian theme. */
+.enveloppe-publication .publication-title { color: var(--text-muted); }
+.enveloppe-publication .publication-state { border: 1px solid var(--background-modifier-border); border-radius: 12px; padding: 12px 18px; margin: 16px 0; }
+.enveloppe-publication .publication-state h3 { margin-top: 0; }
+.enveloppe-publication .is-live { border-color: var(--color-green); }
+.enveloppe-publication .is-failed, .enveloppe-publication .is-permission { border-color: var(--color-orange); }
+.enveloppe-publication .publication-links { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 16px; }

@@ -43,6 +43,7 @@ import {
 } from "src/utils/data_validation_test";
 import { merge } from "ts-deepmerge";
 import { Logs } from "./utils/logs";
+import { PublicationCenter } from "./publishing/center";
 
 /**
  * Main class of the plugin
@@ -54,6 +55,7 @@ export default class Enveloppe extends Plugin {
 	branchName: string = "";
 	repositoryFrontmatter: SetRepositoryFrontmatter = {};
 	console!: Logs;
+  publicationCenter!: PublicationCenter;
 
 	/**
 	 * Get the title field of a file
@@ -256,6 +258,7 @@ export default class Enveloppe extends Plugin {
 		const oldSettings = this.settings;
 		await migrateSettings(oldSettings as unknown as OldSettings, this);
 		await migrateToSecret(this);
+    this.publicationCenter = new PublicationCenter(this);
 
 		this.branchName = `${this.app.vault
 			.getName()

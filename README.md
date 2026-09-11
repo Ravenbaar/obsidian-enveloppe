@@ -1,3 +1,5 @@
+[个人发布中心 7.8.3：使用、权限与更新说明](PUBLISHING.md)
+
 ![Obsidian Downloads](https://img.shields.io/badge/dynamic/json?logo=obsidian&color=%23483699&label=downloads&query=%24%5B%22obsidian-mkdocs-publisher%22%5D.downloads&url=https%3A%2F%2Fraw.githubusercontent.com%2Fobsidianmd%2Fobsidian-releases%2Fmaster%2Fcommunity-plugin-stats.json)
 
 # ✉️ Enveloppe : An Obsidian GitHub Vault Publisher

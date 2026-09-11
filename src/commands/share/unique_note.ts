@@ -71,6 +71,25 @@ export async function shareOneNote(
 	sourceFrontmatter: FrontMatterCache | undefined | null,
 	title?: string
 ): Promise<void | false> {
+  const center = PublisherManager.plugin.publicationCenter;
+  if (!PublisherManager.settings.github.dryRun.enable) center?.begin(title || file.basename);
+  try {
+    const result = await uploadOneNote(PublisherManager, file, repository, sourceFrontmatter, title);
+    if (result === false) center?.failUpload();
+    return result;
+  } catch (error) {
+    center?.failUpload();
+    throw error;
+  }
+}
+
+async function uploadOneNote(
+	PublisherManager: GithubBranch,
+	file: TFile,
+	repository: Repository | null = null,
+	sourceFrontmatter: FrontMatterCache | undefined | null,
+	title?: string
+): Promise<void | false> {
 	const { settings, plugin } = PublisherManager;
 	const app = PublisherManager.plugin.app;
 	plugin.console.noticeMobile(
@@ -85,6 +104,10 @@ export async function shareOneNote(
 		PublisherManager.settings.plugin.shareKey
 	);
 	const prop = getProperties(plugin, repository, frontmatter);
+  if (plugin.publicationCenter?.enabled && (Array.isArray(prop) ? prop : [prop]).some(item => item.automaticallyMergePR)) {
+    plugin.publicationCenter.setState({ stage: "failed", detail: "发布中心需要等待云端检查。请先关闭仓库的插件直接自动合并选项。" });
+    return false;
+  }
 	let isValid: boolean;
 	if (prop instanceof Array) {
 		const isValidArray = [];
@@ -125,6 +148,18 @@ export async function shareOneNote(
 			settings.github.dryRun.enable
 		);
 		if (update) {
+      if (plugin.publicationCenter?.enabled && !settings.github.dryRun.enable && !Array.isArray(prop)) {
+        try {
+          await plugin.publicationCenter.track(PublisherManager, prop,
+            String(frontmatter?.slug || title || file.basename), String(frontmatter?.title || title || file.basename),
+            repository?.smartKey?.toLowerCase() === "default" ? undefined : repository?.smartKey);
+        } catch {
+          plugin.publicationCenter.setState({ stage: "network", detail: "上传已完成，但未能读取对应申请。请打开 GitHub 核对后重试读取。" });
+        }
+      }
+      if (plugin.publicationCenter?.enabled && Array.isArray(prop)) {
+        plugin.publicationCenter.setState({ stage: "idle", detail: "多仓库上传已完成。此发布面板暂时只跟踪单仓库发布，请查看各仓库运行记录。" });
+      }
 			await plugin.console.publisherNotification(PublisherManager, title, settings, prop);
 			await createLink(file, multiRepo, plugin);
 			if (settings.plugin.displayModalRepoEditing) {
@@ -137,8 +172,9 @@ export async function shareOneNote(
 			}
 		} else {
 			plugin.console.noticeErrorUpload(prop);
+      return false;
 		}
-	}
+	} else return false;
 }
 
 /**

@@ -9,6 +9,7 @@ import { verifyToken } from "../utils/data_validation_test";
 import { EnveloppeErrors, type Logs } from "../utils/logs";
 
 export class GithubBranch extends FilesManagement {
+  publicationRequests = new Map<string, number>();
 	console: Logs;
 	constructor(octokit: Octokit, plugin: Enveloppe) {
 		super(octokit, plugin);
@@ -135,8 +136,11 @@ export class GithubBranch extends FilesManagement {
 					owner: prop.owner,
 					repo: prop.repo,
 					state: "open",
+          head: `${prop.owner}:${this.branchName}`,
+          base: prop.branch,
 				});
-				return pr.data[0]?.number || 0;
+        return pr.data.find(item => item.head.ref === this.branchName && item.base.ref === prop.branch
+          && item.head.repo?.full_name === `${prop.owner}/${prop.repo}`)?.number || 0;
 			} catch (e) {
 				// there is no open PR and impossible to create a new one
 				this.console.info(i18next.t("publish.branch.error", { error: e, repo: prop }));
@@ -232,6 +236,7 @@ export class GithubBranch extends FilesManagement {
 		try {
 			const pullRequest = await this.pullRequestOnRepo(prop);
 			if (pullRequest === 0) return false;
+      this.publicationRequests.set(`${prop.owner}/${prop.repo}`, pullRequest);
 			if (prop.automaticallyMergePR && pullRequest !== 0) {
 				const prSuccess = await this.mergePullRequestOnRepo(pullRequest, prop);
 				if (prSuccess) {

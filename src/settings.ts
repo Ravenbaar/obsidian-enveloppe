@@ -17,6 +17,7 @@ import { renderHelp } from "src/settings/renders/help";
 import { renderPluginSettings } from "src/settings/renders/plugin";
 import { renderTextConversion } from "src/settings/renders/text_conversion";
 import { renderUploadConfiguration } from "src/settings/renders/upload";
+import { PublicationSettingsModal } from "src/publishing/center";
 
 export class EnveloppeSettingsTab extends PluginSettingTab {
 	plugin: EnveloppePlugin;
@@ -35,6 +36,9 @@ export class EnveloppeSettingsTab extends PluginSettingTab {
 		const { containerEl } = this;
 		containerEl.empty();
 		containerEl.addClass("enveloppe");
+    new Setting(containerEl).setName("文章发布中心").setDesc("进度、上线结果和失败重试")
+      .addButton(button => button.setButtonText("打开发布中心").onClick(() => this.plugin.publicationCenter.open()))
+      .addButton(button => button.setButtonText("发布设置").onClick(() => new PublicationSettingsModal(this.plugin.publicationCenter).open()));
 		const defaultTabId = ESettingsTabId.Github;
 		let savedId = this.settings.tabsId ?? defaultTabId;
 		if (this.settings.plugin.saveTabId != undefined && !this.settings.plugin.saveTabId) {

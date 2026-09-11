@@ -101,6 +101,7 @@ export interface Repository {
  * @description Interface for the settings of the plugin
  */
 export interface EnveloppeSettings {
+  publishing?: import("src/publishing/model").PublishingSettings;
 	/**
 	 * Save the tabs id when the settings was closed, pretty useful when quick tests are done
 	 */

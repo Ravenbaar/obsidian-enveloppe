@@ -38,6 +38,8 @@ export function addMenuFile(
 		return;
 
 	const prop = getProperties(plugin, getSharedKey, frontmatter, true);
+  if (plugin.settings.publishing?.enabled) menu.addItem(item => item.setTitle("查看发布进度与重试")
+    .setIcon("activity").onClick(() => plugin.publicationCenter.open()));
 
 	menu.addItem((item) => {
 		/**
@@ -73,7 +75,7 @@ export function addMenuFile(
 		}
 		item
 			.setTitle(
-				i18next.t("commands.shareViewFiles.multiple.on", {
+				plugin.settings.publishing?.enabled ? `发布 ${fileName} 到博客` : i18next.t("commands.shareViewFiles.multiple.on", {
 					doc: fileName,
 					smartKey:
 						getSharedKey?.smartKey?.toUpperCase() ||
