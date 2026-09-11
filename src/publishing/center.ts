@@ -88,6 +88,21 @@ export class PublicationCenter {
     this.busy = true;
     try {
       const pr = await this.api<PullRequest>(record, "GET", `pulls/${record.number}`);
+      if (record.syncBase) {
+        if (pr.head.sha === record.head) {
+          if (epoch === this.epoch) this.setState({ stage: "checking", detail: "正在同步网站最新版本，随后自动重新检查。" });
+          return;
+        }
+        const commit = await this.api<{ parents: { sha: string }[] }>(record, "GET", `git/commits/${pr.head.sha}`);
+        const expected = { ...record, head: pr.head.sha };
+        if (!matchesRecord(pr, expected) || commit.parents.length !== 2
+          || commit.parents[0].sha !== record.head || commit.parents[1].sha !== record.syncBase) {
+          throw new Error("Unexpected branch synchronization");
+        }
+        record.head = pr.head.sha;
+        delete record.syncBase;
+        await this.plugin.saveSettings();
+      }
       if (!matchesRecord(pr, record)) {
         if (epoch === this.epoch) this.setState({ stage: "stale", detail: "该申请已有新的上传。请重新上传或在 GitHub 核对最新版本。" });
         return;
@@ -154,6 +169,27 @@ export class PublicationCenter {
           ref: record.base, inputs: { expected_sha: ref.object.sha },
         });
       } else {
+        if (pr.merged || pr.state !== "open") throw new Error("Request is not open");
+        const ref = await this.api<{ object: { sha: string } }>(record, "GET", `git/ref/heads/${encodeURIComponent(record.base)}`);
+        if (pr.base.sha !== ref.object.sha) {
+          // The existing token creates the branch update, so normal PR checks
+          // run. Accept its new head only after checking both merge parents.
+          record.syncBase = ref.object.sha;
+          record.startedAt = new Date().toISOString();
+          await this.plugin.saveSettings();
+          try {
+            await this.api(record, "PUT", `pulls/${record.number}/update-branch`, { expected_head_sha: record.head });
+          } catch (error) {
+            if ([401, 403, 422].includes((error as { status: number }).status)) {
+              delete record.syncBase;
+              await this.plugin.saveSettings();
+            }
+            throw error;
+          }
+          this.retryUntil = Date.now() + 20000;
+          this.setState({ stage: "checking", detail: "已请求同步网站最新版本，等待重新检查；文章原稿不变。" });
+          return;
+        }
         await this.api(record, "POST", `actions/workflows/${encodeURIComponent(this.config.publishWorkflow)}/dispatches`, {
           ref: record.base, inputs: { pr_number: String(record.number), dry_run: "false" },
         });

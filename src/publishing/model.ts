@@ -9,6 +9,7 @@ export interface PublicationRecord {
   title: string;
   smartKey?: string;
   startedAt?: string;
+  syncBase?: string;
 }
 
 export interface PublishingSettings {
@@ -34,7 +35,7 @@ export interface PullRequest {
   merged: boolean;
   merge_commit_sha: string | null;
   head: { sha: string; ref: string; repo: { full_name: string } | null };
-  base: { ref: string };
+  base: { ref: string; sha?: string };
 }
 
 export interface ActionRun {

@@ -10,7 +10,7 @@ function fixture() {
   const record = { owner: 'owner', repo: 'blog', base: 'main', branch: 'Notes-9-11-2026',
     head: 'b'.repeat(40), number: 3, slug: 'article', title: 'Synthetic public article' };
   const pr = { number: 3, merged: true, state: 'closed', merge_commit_sha: 'c'.repeat(40),
-    head: { sha: record.head, ref: record.branch, repo: { full_name: 'owner/blog' } }, base: { ref: 'main' } };
+    head: { sha: record.head, ref: record.branch, repo: { full_name: 'owner/blog' } }, base: { ref: 'main', sha: 'c'.repeat(40) } };
   const calls = [], publicCalls = [];
   const state = { record, pr, calls, publicCalls, failure: undefined, release: pr.merge_commit_sha,
     runs: [{ id: 12, path: '.github/workflows/astro-deploy.yml', head_sha: pr.merge_commit_sha,
@@ -30,6 +30,7 @@ function fixture() {
     addCommand() {}, register() {}, saveSettings: async () => {}, reloadOctokit: async () => ({ octokit: {
       request: async (route, params) => {
         calls.push({ route, params });
+        if (route.endsWith('/update-branch')) { if (state.writeFailure) throw { status: state.writeFailure }; return { data: {} }; }
         if (route.startsWith('POST ')) { if (state.writeFailure) throw { status: state.writeFailure }; return { data: {} }; }
         if (route.endsWith('/pulls/3')) return { data: structuredClone(pr) };
         if (state.failure) throw { status: state.failure };
@@ -37,6 +38,7 @@ function fixture() {
         if (route.endsWith('/actions/runs')) return { data: { workflow_runs: state.runs } };
         if (route.includes('/actions/workflows/')) return { data: { workflow_runs: [] } };
         if (route.includes('/git/ref/')) return { data: { object: { sha: state.release } } };
+        if (route.includes('/git/commits/')) return { data: { parents: state.syncParents.map(sha => ({ sha })) } };
         if (route.includes('/compare/')) return { data: { merge_base_commit: { sha: state.ancestor || pr.merge_commit_sha } } };
         throw new Error(route);
       },
@@ -123,8 +125,50 @@ test('deployment retry dispatches the verified current main and leaves the uploa
 
 test('Actions read without write does not misreport a retry as accepted', async () => {
   const f = fixture();
+  f.pr.merged = false;
+  f.pr.state = 'open';
   f.center.state = { stage: 'failed', detail: '', retry: 'publish' };
   f.writeFailure = 403;
   await f.center.retry();
   assert.equal(f.center.state.stage, 'permission');
+});
+
+test('retry synchronizes an outdated open request with its exact head before restarting checks', async () => {
+  const f = fixture();
+  f.pr.merged = false;
+  f.pr.state = 'open';
+  f.pr.base.sha = 'a'.repeat(40);
+  f.center.state = { stage: 'failed', detail: '', retry: 'publish' };
+  await f.center.retry();
+  const writes = f.calls.filter(call => /^(PUT|POST) /.test(call.route));
+  assert.equal(writes.length, 1);
+  assert(writes[0].route.endsWith('/pulls/3/update-branch'));
+  assert.equal(writes[0].params.expected_head_sha, f.record.head);
+  assert.equal(f.record.syncBase, f.release);
+  assert.equal(f.center.state.stage, 'checking');
+});
+
+test('refresh adopts only the exact requested synchronization merge and never an unrelated upload', async () => {
+  for (const exact of [true, false]) {
+    const f = fixture();
+    const oldHead = f.record.head;
+    f.record.syncBase = 'a'.repeat(40);
+    f.pr.head.sha = 'd'.repeat(40);
+    f.syncParents = [oldHead, exact ? f.record.syncBase : 'e'.repeat(40)];
+    await f.center.refresh();
+    assert.equal(f.record.head, exact ? f.pr.head.sha : oldHead);
+    assert.equal(f.center.state.stage, exact ? 'live' : 'network');
+  }
+});
+
+test('a rejected branch synchronization is cleared and cannot adopt a later unrelated head', async () => {
+  const f = fixture();
+  f.pr.merged = false;
+  f.pr.state = 'open';
+  f.pr.base.sha = 'a'.repeat(40);
+  f.writeFailure = 422;
+  f.center.state = { stage: 'failed', detail: '', retry: 'publish' };
+  await f.center.retry();
+  assert.equal(f.record.syncBase, undefined);
+  assert.equal(f.calls.filter(call => call.route.startsWith('POST ')).length, 0);
 });
