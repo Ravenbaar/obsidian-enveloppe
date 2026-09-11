@@ -77,6 +77,7 @@ export class PublicationCenter {
     const manager = await this.plugin.reloadOctokit(record.smartKey);
     const response = await manager.octokit.request(`${method} /repos/{owner}/{repo}/${path}`, {
       owner: record.owner, repo: record.repo, ...params,
+      ...(method === "GET" ? { publication_refresh: Date.now() } : {}),
     });
     return response.data as T;
   }
@@ -116,7 +117,7 @@ export class PublicationCenter {
           `actions/workflows/${encodeURIComponent(this.config.publishWorkflow)}/runs`, { per_page: 30 })).workflow_runs;
       }
       let state = deriveState(pr, record, runs.workflow_runs, automatic, runs.workflow_runs, this.config);
-      if (pr.merged && pr.merge_commit_sha && this.config.siteUrl && state.stage !== "failed") {
+      if (pr.merged && pr.merge_commit_sha && this.config.siteUrl) {
         const site = publicSite(this.config.siteUrl);
         const release = await requestUrl({ url: new URL(`release.json?publish=${Date.now()}`, site).href, throw: false });
         const deployedSha = release.status === 200 ? (release.json as { source_sha?: string }).source_sha : undefined;

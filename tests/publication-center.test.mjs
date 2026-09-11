@@ -55,6 +55,10 @@ test('complete refresh verifies deployed source and article without sending any 
   assert.equal(f.publicCalls.length, 2);
   for (const request of f.publicCalls) assert.equal(request.headers, undefined);
   assert(!f.calls.some(call => call.route.startsWith('POST ')));
+  for (const call of f.calls) {
+    assert.equal(call.params.headers, undefined);
+    assert.equal(typeof call.params.publication_refresh, 'number');
+  }
 });
 
 test('missing Actions permission is shown explicitly without falsely reporting failed publication', async () => {
@@ -81,6 +85,17 @@ test('a later public deployment is accepted only when the article merge is its a
     await f.center.refresh();
     assert.equal(f.center.state.stage, sameHistory ? 'live' : 'verifying');
   }
+});
+
+test('successful newer deployment clears an older deployment failure only after public verification', async () => {
+  const f = fixture();
+  f.runs[0].conclusion = 'failure';
+  f.release = 'd'.repeat(40);
+  await f.center.refresh();
+  assert.equal(f.center.state.stage, 'live');
+  f.ancestor = 'a'.repeat(40);
+  await f.center.refresh();
+  assert.equal(f.center.state.stage, 'failed');
 });
 
 test('retry checks pins the current PR and head and targets only its failed run', async () => {
