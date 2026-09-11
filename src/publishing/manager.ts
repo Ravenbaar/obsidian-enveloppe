@@ -86,6 +86,16 @@ export class ArticleManager {
           row.status = row.desired === 'deleted' ? '已删除' : row.draft ? '已隐藏（草稿）' : '已隐藏';
         } else row.status = '处理中：等待部署';
       }
+      const last = this.center.config.last;
+      if (last && last.owner === this.context.owner && last.repo === this.context.repo) {
+        const row = this.rows.find(item => item.slug === last.slug);
+        if (row) {
+          const pr = await this.api<PullRequest>('GET', `pulls/${last.number}`);
+          if (!pr.merged && pr.state === 'open' && pr.head.sha === last.head) {
+            row.status = `处理中：${last.action ? labels[last.action] : '更新文章'}`;
+          }
+        }
+      }
       this.message = `共 ${this.rows.length} 篇。状态来自网站仓库和当前公开版本。`;
     } catch (error) { this.message = this.errorMessage(error); }
     finally { this.busy = false; this.modal?.render(); }
@@ -153,6 +163,8 @@ export class ArticleManager {
       body: JSON.stringify({ enveloppe: 1, action: pending.action, slug: pending.slug, source: pending.source }) });
     delete this.center.config.managementPending;
     await this.center.watch({ ...pending, number: pr.number });
+    const row = this.rows.find(item => item.slug === pending.slug);
+    if (row) row.status = `处理中：${labels[pending.action]}`;
     this.message = `${labels[pending.action]}申请已提交，检查通过后自动部署。`;
     this.center.setState({ stage: 'checking', detail: this.message });
     this.center.open();
@@ -187,7 +199,8 @@ class ArticleManagerModal extends Modal {
       for (const row of rows) {
         const item = new Setting(list).setName(row.title).setDesc(`${row.slug} · ${row.status}`);
         if (row.url) item.addButton(button => button.setButtonText('打开文章').onClick(() => window.open(row.url, '_blank', 'noopener,noreferrer')));
-        const disabled = m.busy || !!m.center.config.managementPending;
+        const disabled = m.busy || !!m.center.config.managementPending || row.status.startsWith('处理中');
+        if (row.status.startsWith('处理中')) item.addButton(button => button.setButtonText('查看进度').onClick(() => m.center.open()));
         if (row.desired === 'published') item.addButton(button => button.setButtonText('隐藏').setDisabled(disabled).onClick(() => m.submit(row, 'hide')));
         else if (!row.draft) item.addButton(button => button.setButtonText('恢复公开').setDisabled(disabled).onClick(() => m.submit(row, 'restore')));
         if (row.exists && row.desired !== 'deleted') item.addButton(button => button.setButtonText('删除线上文章').setDisabled(disabled)

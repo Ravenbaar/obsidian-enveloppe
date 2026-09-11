@@ -1,9 +1,18 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { DEFAULT_PUBLISHING, deriveState, findPublishedArticle, matchesRecord, publicSite } from '../src/publishing/model.ts';
+import { DEFAULT_PUBLISHING, deriveState, findPublishedArticle, matchesRecord, publicSite, singlePublishingTarget } from '../src/publishing/model.ts';
 
 const record = { owner: 'owner', repo: 'blog', base: 'main', branch: 'Notes-9-11-2026',
   head: 'b'.repeat(40), number: 3, slug: 'blog-AI-260524', title: 'Synthetic public article' };
+
+test('a one-element repository array is a single publication, not a multi-repository upload', () => {
+  const target = { owner: 'owner', repo: 'blog', branch: 'main' };
+  assert.equal(singlePublishingTarget(target), target);
+  assert.equal(singlePublishingTarget([target]), target);
+  assert.equal(singlePublishingTarget([target, { ...target }]), target);
+  assert.equal(singlePublishingTarget([target, { ...target, repo: 'other' }]), undefined);
+  assert.equal(singlePublishingTarget([]), undefined);
+});
 const pr = { number: 3, state: 'open', merged: false, merge_commit_sha: 'c'.repeat(40),
   head: { sha: record.head, ref: record.branch, repo: { full_name: 'owner/blog' } }, base: { ref: 'main' } };
 const checks = DEFAULT_PUBLISHING.checkWorkflows.map((workflow, index) => ({ id: index + 1,

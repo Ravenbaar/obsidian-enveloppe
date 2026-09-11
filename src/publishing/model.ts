@@ -33,6 +33,12 @@ export const DEFAULT_PUBLISHING: PublishingSettings = {
   checkWorkflows: ["astro-build.yml", "project-check.yml"],
 };
 
+export function singlePublishingTarget<T extends { owner: string; repo: string; branch: string }>(value: T | T[]): T | undefined {
+  const items = Array.isArray(value) ? value : [value];
+  const identities = new Set(items.map(item => `${item.owner}/${item.repo}@${item.branch}`));
+  return identities.size === 1 ? items[0] : undefined;
+}
+
 export interface PullRequest {
   number: number;
   state: string;

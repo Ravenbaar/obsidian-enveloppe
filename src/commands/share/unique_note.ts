@@ -9,6 +9,7 @@ import {
 } from "obsidian";
 import type { GithubBranch } from "src/GitHub/branch";
 import type Enveloppe from "src/main";
+import { singlePublishingTarget } from 'src/publishing/model';
 import { ListChangedFiles } from "src/settings/modals/list_changed";
 import { createLink, createListEdited, getSettingsOfMetadataExtractor } from "src/utils";
 import {
@@ -148,16 +149,17 @@ async function uploadOneNote(
 			settings.github.dryRun.enable
 		);
 		if (update) {
-      if (plugin.publicationCenter?.enabled && !settings.github.dryRun.enable && !Array.isArray(prop)) {
+      const publicationTarget = singlePublishingTarget(prop);
+      if (plugin.publicationCenter?.enabled && !settings.github.dryRun.enable && publicationTarget) {
         try {
-          await plugin.publicationCenter.track(PublisherManager, prop,
+          await plugin.publicationCenter.track(PublisherManager, publicationTarget,
             String(frontmatter?.slug || title || file.basename), String(frontmatter?.title || title || file.basename),
             repository?.smartKey?.toLowerCase() === "default" ? undefined : repository?.smartKey);
         } catch {
           plugin.publicationCenter.setState({ stage: "network", detail: "上传已完成，但未能读取对应申请。请打开 GitHub 核对后重试读取。" });
         }
       }
-      if (plugin.publicationCenter?.enabled && Array.isArray(prop)) {
+      if (plugin.publicationCenter?.enabled && !publicationTarget) {
         plugin.publicationCenter.setState({ stage: "idle", detail: "多仓库上传已完成。此发布面板暂时只跟踪单仓库发布，请查看各仓库运行记录。" });
       }
 			await plugin.console.publisherNotification(PublisherManager, title, settings, prop);

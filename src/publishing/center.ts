@@ -64,7 +64,7 @@ export class PublicationCenter {
     const number = manager.publicationRequests.get(`${prop.owner}/${prop.repo}`);
     if (!number) throw new Error("Upload did not identify its pull request");
     const response = await manager.octokit.request("GET /repos/{owner}/{repo}/pulls/{pull_number}", {
-      owner: prop.owner, repo: prop.repo, pull_number: number,
+      owner: prop.owner, repo: prop.repo, pull_number: number, publication_refresh: Date.now(),
     });
     const pr = response.data;
     if (pr.head.ref !== manager.branchName || pr.base.ref !== prop.branch
