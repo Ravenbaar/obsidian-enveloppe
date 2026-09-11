@@ -17,13 +17,14 @@ function fixture() {
       head_branch: 'main', status: 'completed', conclusion: 'success' }] };
   const module = { exports: {} };
   class Modal { constructor() {} }
-  vm.runInNewContext(bundle, { module, exports: module.exports, URL, Date, console,
+  vm.runInNewContext(bundle, { module, exports: module.exports, URL, Date, console, Buffer,
     window: {}, require: name => {
       assert.equal(name, 'obsidian');
       return { Modal, Setting: class {}, requestUrl: async options => {
         publicCalls.push(options);
+        if (options.url.includes('/posts/')) return { status: state.pageStatus ?? 404 };
         return { status: 200, json: options.url.includes('release.json')
-          ? { source_sha: state.release } : [{ url: '/posts/article/' }] };
+          ? { source_sha: state.release } : (state.hidden ? [] : [{ url: '/posts/article/' }]) };
       } };
     } });
   const plugin = { app: {}, settings: { publishing: { enabled: false, siteUrl: 'https://example.com/', last: record } },
@@ -58,6 +59,21 @@ test('complete refresh verifies deployed source and article without sending any 
   for (const call of f.calls) {
     assert.equal(call.params.headers, undefined);
     assert.equal(typeof call.params.publication_refresh, 'number');
+  }
+});
+
+test('hide and delete require the deployed version, absent index entry and a missing direct page', async () => {
+  for (const action of ['hide', 'delete']) {
+    const f = fixture(); f.record.action = action; f.hidden = true;
+    f.pageStatus = 200;
+    await f.center.refresh();
+    assert.equal(f.center.state.stage, 'verifying');
+    f.pageStatus = 404;
+    await f.center.refresh();
+    assert.equal(f.center.state.stage, action === 'hide' ? 'hidden' : 'deleted');
+    f.hidden = false;
+    await f.center.refresh();
+    assert.equal(f.center.state.stage, 'verifying');
   }
 });
 

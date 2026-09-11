@@ -487,3 +487,8 @@ span.enveloppe.icons svg.lucide-hourglass {
 .enveloppe-publication .is-live { border-color: var(--color-green); }
 .enveloppe-publication .is-failed, .enveloppe-publication .is-permission { border-color: var(--color-orange); }
 .enveloppe-publication .publication-links { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 16px; }
+.enveloppe-article-manager { width: min(900px, 94vw); }
+.article-manager-search { width: 100%; margin-bottom: 12px; }
+.article-manager-list { max-height: 55vh; overflow-y: auto; }
+.article-manager-list .setting-item { gap: 12px; align-items: flex-start; }
+.article-manager-list .setting-item-control { flex-wrap: wrap; }

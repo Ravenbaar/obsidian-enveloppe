@@ -40,6 +40,8 @@ export function addMenuFile(
 	const prop = getProperties(plugin, getSharedKey, frontmatter, true);
   if (plugin.settings.publishing?.enabled) menu.addItem(item => item.setTitle("查看发布进度与重试")
     .setIcon("activity").onClick(() => plugin.publicationCenter.open()));
+  if (plugin.settings.publishing?.enabled) menu.addItem(item => item.setTitle('文章管理（已发布／隐藏／删除）')
+    .setIcon('files').onClick(() => plugin.publicationCenter.articleManager.open()));
 
 	menu.addItem((item) => {
 		/**

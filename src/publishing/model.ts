@@ -1,3 +1,5 @@
+import type { ArticleAction, PendingManagement } from './management-model';
+
 export interface PublicationRecord {
   owner: string;
   repo: string;
@@ -10,6 +12,7 @@ export interface PublicationRecord {
   smartKey?: string;
   startedAt?: string;
   syncBase?: string;
+  action?: ArticleAction;
 }
 
 export interface PublishingSettings {
@@ -19,6 +22,7 @@ export interface PublishingSettings {
   deployWorkflow: string;
   checkWorkflows: string[];
   last?: PublicationRecord;
+  managementPending?: PendingManagement;
 }
 
 export const DEFAULT_PUBLISHING: PublishingSettings = {
@@ -52,7 +56,7 @@ export interface ActionRun {
 }
 
 export type Stage = "idle" | "uploading" | "checking" | "merging" | "deploying"
-  | "verifying" | "live" | "failed" | "permission" | "stale" | "network";
+  | "verifying" | "live" | "hidden" | "deleted" | "failed" | "permission" | "stale" | "network";
 
 export interface PublicationState {
   stage: Stage;
@@ -66,6 +70,7 @@ export const STAGE_LABELS: Record<Stage, string> = {
   idle: "还没有发布记录", uploading: "上传中", checking: "检查中",
   merging: "等待自动合并", deploying: "部署中", verifying: "核验网站中",
   live: "已上线", failed: "发布失败", permission: "需要补充权限",
+  hidden: "已隐藏", deleted: "已删除线上文章",
   stale: "申请已有新版本", network: "暂时无法读取进度",
 };
 

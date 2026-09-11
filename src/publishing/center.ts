@@ -1,4 +1,7 @@
 import { Modal, requestUrl, Setting } from "obsidian";
+import { Base64 } from 'js-base64';
+import { ArticleManager } from './manager';
+import { parseArticleState, STATE_PATH } from './management-model';
 import type Enveloppe from "src/main";
 import type { Properties } from "src/interfaces/main";
 import type { GithubBranch } from "src/GitHub/branch";
@@ -15,9 +18,11 @@ export class PublicationCenter {
   private retryUntil = 0;
   private startedAt?: string;
   private status?: HTMLElement;
+  readonly articleManager: ArticleManager;
 
   constructor(readonly plugin: Enveloppe) {
     plugin.settings.publishing = { ...DEFAULT_PUBLISHING, ...plugin.settings.publishing };
+    this.articleManager = new ArticleManager(this);
     plugin.addCommand({ id: "publication-center", name: "发布中心：查看进度与重试", callback: () => this.open() });
     plugin.addCommand({ id: "publication-settings", name: "发布中心：设置", callback: () => new PublicationSettingsModal(this).open() });
     plugin.register(() => this.modal?.close());
@@ -72,7 +77,15 @@ export class PublicationCenter {
     await this.refresh();
   }
 
-  private async api<T>(record: PublicationRecord, method: string, path: string, params: Record<string, unknown> = {}): Promise<T> {
+  async watch(record: PublicationRecord) {
+    this.epoch++;
+    this.config.last = record;
+    await this.plugin.saveSettings();
+    this.setState({ stage: 'checking', detail: '申请已提交，检查通过后自动部署。' });
+    this.open();
+  }
+
+  async api<T>(record: Pick<PublicationRecord, 'owner' | 'repo' | 'smartKey'>, method: string, path: string, params: Record<string, unknown> = {}): Promise<T> {
     if (!/^[\w.-]+$/.test(record.owner) || !/^[\w.-]+$/.test(record.repo)) throw new Error("Invalid repository");
     const manager = await this.plugin.reloadOctokit(record.smartKey);
     const response = await manager.octokit.request(`${method} /repos/{owner}/{repo}/${path}`, {
@@ -130,7 +143,21 @@ export class PublicationCenter {
         if (containsCommit) {
           const search = await requestUrl({ url: new URL(`search-index.json?publish=${Date.now()}`, site).href, throw: false });
           const articleUrl = search.status === 200 ? findPublishedArticle(search.json, record.slug, site) : undefined;
-          state = articleUrl ? { stage: "live", detail: "已核对公开版本和文章索引。文章已经上线。", articleUrl }
+          if (search.status !== 200) throw new Error('Search index unavailable');
+          let excluded: 'hidden' | 'deleted' | undefined = record.action === 'hide' ? 'hidden' : record.action === 'delete' ? 'deleted' : undefined;
+          if (!articleUrl && !record.action) {
+            try {
+              const data = await this.api<{ content: string }>(record, 'GET', `contents/${STATE_PATH}`, { ref: deployedSha });
+              excluded = parseArticleState(Base64.decode(data.content)).articles[record.slug]?.state;
+            } catch (error) { if ((error as { status?: number }).status !== 404) throw error; }
+          }
+          if (excluded) {
+            const target = new URL(`posts/${encodeURIComponent(record.slug)}/?publish=${Date.now()}`, site);
+            const page = await requestUrl({ url: target.href, throw: false });
+            state = !articleUrl && [404, 410].includes(page.status)
+              ? { stage: excluded, detail: excluded === 'hidden' ? '网站列表与直接链接均已下架；原稿保留，可在文章管理恢复。' : '线上文章已删除，直接链接已下架；Obsidian原稿保留。' }
+              : { stage: 'verifying', detail: '正在核对下架结果，公开列表或链接尚未更新，稍后重新检查。' };
+          } else state = articleUrl ? { stage: "live", detail: "已核对公开版本和文章索引。文章已经上线。", articleUrl }
             : { stage: "failed", detail: "网站版本已更新，但未找到这篇文章。请检查 draft 属性、slug 和站点生成结果。" };
         } else if (state.stage === "verifying") {
           state = { stage: "verifying", detail: "部署成功，公开站点尚未返回包含本次文章的版本；稍后自动重查。" };
@@ -218,7 +245,7 @@ class PublicationModal extends Modal {
     void this.center.refresh();
     this.timer = window.setInterval(() => {
       if (Date.now() - this.openedAt < 20 * 60 * 1000
-        && !["live", "permission", "failed", "stale"].includes(this.center.state.stage)) void this.center.refresh();
+        && !["live", "hidden", "deleted", "permission", "failed", "stale"].includes(this.center.state.stage)) void this.center.refresh();
     }, 20000);
   }
   onClose() {
@@ -255,6 +282,7 @@ class PublicationModal extends Modal {
     if (center.state.stage === "permission") el.createEl("a", { text: "打开 GitHub Token 权限设置", href: "https://github.com/settings/personal-access-tokens",
       attr: { target: "_blank", rel: "noopener noreferrer" } });
     new Setting(el).setDesc("关闭面板不会中断云端发布。可从右键菜单或命令面板重新查看。")
+      .addButton(button => button.setButtonText('文章管理').onClick(() => center.articleManager.open()))
       .addButton(button => button.setButtonText("发布设置").onClick(() => new PublicationSettingsModal(center).open()));
   }
 }
