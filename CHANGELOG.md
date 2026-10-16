@@ -1,3 +1,13 @@
+## [7.8.5](https://github.com/Ravenbaar/obsidian-enveloppe/compare/7.8.4...7.8.5) (2026-10-16)
+
+### Publishing fork
+
+- Preserve native Obsidian wikilinks, aliases, and heading references in the publishing-center blog pipeline, including GFM tables and future resolution of unpublished targets.
+- Add Chinese encryption preflight errors with original source line numbers, and verify protection is preserved before upload.
+- Preserve code examples and configured redactions without exporting metadata from unshared notes.
+- Retain the existing plugin ID, settings, and SecretStorage. Requires Obsidian 1.11.14 or newer.
+- Validation: types, 52 publication behavior tests, and production bundle. Native Obsidian installation and mobile behavior have not been revalidated for this release.
+
 ## [7.8.2](https://github.com/Enveloppe/obsidian-enveloppe/compare/7.8.1...7.8.2) (2026-04-07)
 ### Bug Fixes
 
