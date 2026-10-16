@@ -21,7 +21,7 @@ jobs:
       github.repository == 'Ravenbaar/obsidian-enveloppe' &&
       github.event_name == 'push' &&
       github.ref == 'refs/heads/codex/publish-center' &&
-      github.event.before == '2d70ea3349d6b25a71193669394df1c9a7a6fb49'
+      github.event.before == '8f5b8c863e7d0e276922cea6bf7130a7d7c0e73c'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -81,7 +81,7 @@ jobs:
       github.repository == 'Ravenbaar/obsidian-enveloppe' &&
       github.event_name == 'push' &&
       github.ref == 'refs/heads/codex/publish-center' &&
-      github.event.before == '2d70ea3349d6b25a71193669394df1c9a7a6fb49'
+      github.event.before == '8f5b8c863e7d0e276922cea6bf7130a7d7c0e73c'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -103,42 +103,34 @@ jobs:
           test "$(find dist -mindepth 1 | wc -l)" -eq 3
           printf '%s  %s\n' "$EXPECTED_MAIN" dist/main.js "$EXPECTED_MANIFEST" dist/manifest.json "$EXPECTED_STYLES" dist/styles.css | sha256sum --check --strict
           node -e 'const a=require("./dist/manifest.json");if(a.id!=="obsidian-mkdocs-publisher"||a.version!=="7.8.5"||a.minAppVersion!=="1.11.14")process.exit(1)'
-      - name: Create draft, verify three uploaded assets, then publish
+      - name: Verify and publish the inspected draft by immutable release ID
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           test "$(gh api "repos/$RELEASE_REPO/git/ref/heads/codex/publish-center" --jq .object.sha)" = "$GITHUB_SHA"
-          for endpoint in "git/ref/tags/$RELEASE_TAG" "releases/tags/$RELEASE_TAG"; do
-            if gh api "repos/$RELEASE_REPO/$endpoint" > existing.json 2> lookup.err; then
-              echo "Refusing to replace existing tag or release: $endpoint" >&2
-              exit 1
-            elif ! grep -Fq '(HTTP 404)' lookup.err; then
-              cat lookup.err >&2
-              exit 1
-            fi
-          done
-          cat > RELEASE.md <<'NOTES'
-          ## Enveloppe 发布中心 7.8.5
-
-          - 支持原生 Obsidian 双链、别名和标题链接；未发布目标保留原写法，配套网站以后可自动关联。
-          - 增加中文加密发布前检查，按原稿行号提示错误；保留代码示例、表格和文本脱敏配置。
-          - 保留插件 ID、已有设置和 SecretStorage。需要 Obsidian 1.11.14 或更新版本，以及支持原生双链的配套网站。
-
-          安装：关闭插件，备份旧程序文件，只替换 main.js、manifest.json、styles.css，再启用。保留 data.json 和钥匙串；不要删除整个插件目录。BRAT 1.1.0+ 可固定本仓库的 7.8.5 标签。官方更新可能覆盖定制功能。
-
-          验证：类型检查、52 项发布行为测试、生产构建及发行附件 SHA-256 回读核验。此版本未重新进行真实 Obsidian 安装与移动端验收。
-
-          源码：2d70ea3349d6b25a71193669394df1c9a7a6fb49（codex/publish-center）。
-          NOTES
-          gh release create "$RELEASE_TAG" --repo "$RELEASE_REPO" --target "$SOURCE_SHA" --title "$RELEASE_TAG" --draft --notes-file RELEASE.md dist/main.js dist/manifest.json dist/styles.css
-          gh api "repos/$RELEASE_REPO/releases/tags/$RELEASE_TAG" > release.json
-          node -e 'const r=require("./release.json");if(!r.draft||r.target_commitish!==process.env.SOURCE_SHA||r.assets.map(a=>a.name).sort().join(",")!=="main.js,manifest.json,styles.css"||r.assets.some(a=>a.state!=="uploaded"))process.exit(1)'
-          gh release download "$RELEASE_TAG" --repo "$RELEASE_REPO" --dir verified --pattern '*'
+          if gh api "repos/$RELEASE_REPO/git/ref/tags/$RELEASE_TAG" > existing.json 2> lookup.err; then
+            echo 'Refusing an existing 7.8.5 tag' >&2
+            exit 1
+          elif ! grep -Fq '(HTTP 404)' lookup.err; then
+            cat lookup.err >&2
+            exit 1
+          fi
+          gh api "repos/$RELEASE_REPO/releases/414483079" > release.json
+          node <<'CHECK'
+          const r=require('./release.json');
+          const expected=[['main.js',645922912,process.env.EXPECTED_MAIN],['manifest.json',645922908,process.env.EXPECTED_MANIFEST],['styles.css',645922910,process.env.EXPECTED_STYLES]];
+          if(r.id!==414483079||!r.draft||r.prerelease||r.tag_name!=='7.8.5'||r.target_commitish!==process.env.SOURCE_SHA||r.assets.length!==3)process.exit(1);
+          for(const [name,id,digest] of expected){const a=r.assets.find(a=>a.name===name);if(!a||a.id!==id||a.state!=='uploaded'||a.digest!=='sha256:'+digest)process.exit(1);}
+          CHECK
+          mkdir verified
+          gh api -H 'Accept: application/octet-stream' "repos/$RELEASE_REPO/releases/assets/645922912" > verified/main.js
+          gh api -H 'Accept: application/octet-stream' "repos/$RELEASE_REPO/releases/assets/645922908" > verified/manifest.json
+          gh api -H 'Accept: application/octet-stream' "repos/$RELEASE_REPO/releases/assets/645922910" > verified/styles.css
           printf '%s  %s\n' "$EXPECTED_MAIN" verified/main.js "$EXPECTED_MANIFEST" verified/manifest.json "$EXPECTED_STYLES" verified/styles.css | sha256sum --check --strict
+          node -e 'const a=require("./verified/manifest.json");if(a.id!=="obsidian-mkdocs-publisher"||a.version!=="7.8.5"||a.minAppVersion!=="1.11.14")process.exit(1)'
           test "$(gh api "repos/$RELEASE_REPO/git/ref/heads/codex/publish-center" --jq .object.sha)" = "$GITHUB_SHA"
-          gh release edit "$RELEASE_TAG" --repo "$RELEASE_REPO" --draft=false --latest
+          gh api --method PATCH "repos/$RELEASE_REPO/releases/414483079" -F draft=false -f make_latest=true > published.json
           test "$(gh api "repos/$RELEASE_REPO/git/ref/tags/$RELEASE_TAG" --jq .object.sha)" = "$SOURCE_SHA"
-          gh api "repos/$RELEASE_REPO/releases/tags/$RELEASE_TAG" > published.json
-          node -e 'const r=require("./published.json");if(r.draft||r.prerelease||r.tag_name!=="7.8.5"||r.assets.length!==3)process.exit(1); console.log(r.html_url)'
+          node -e 'const r=require("./published.json");if(r.id!==414483079||r.draft||r.prerelease||r.tag_name!=="7.8.5"||r.target_commitish!==process.env.SOURCE_SHA||r.assets.length!==3)process.exit(1);console.log(r.html_url)'
           echo "Published 7.8.5 from $SOURCE_SHA; remove this temporary workflow after verification." >> "$GITHUB_STEP_SUMMARY"
