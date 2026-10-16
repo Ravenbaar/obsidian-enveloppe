@@ -9,13 +9,23 @@ export async function checkPublicationSource(plugin: Enveloppe, file: TFile, rep
   const path = destination ?? getReceiptFolder(file, repository, plugin, properties);
   if (!isPublishingArticle(plugin.settings.publishing?.enabled, path)) return;
   const source = await plugin.app.vault.read(file);
-  return { source, protection: inspectPublicationSource(source, parseYaml, path) };
+  try { return { source, protection: inspectPublicationSource(source, parseYaml, path) }; }
+  catch (error) {
+    if (error instanceof PublicationPreflightError) throw error.withFilename(file.name);
+    throw error;
+  }
 }
 
-export function showPublicationPreflightError(plugin: Enveloppe, error: unknown): boolean {
+const reportedErrors = new WeakSet<PublicationPreflightError>();
+
+export function showPublicationPreflightError(plugin: Enveloppe, error: unknown, filename?: string): boolean {
   if (!(error instanceof PublicationPreflightError)) return false;
-  plugin.publicationCenter?.setState({ stage: 'failed', detail: error.message });
-  new Notice(error.message, 12000);
+  if (reportedErrors.has(error)) return true;
+  if (filename) error.withFilename(filename);
+  reportedErrors.add(error);
+  const detail = error.message;
+  plugin.publicationCenter?.failPreflight(detail);
+  new Notice(detail, 12000);
   return true;
 }
 

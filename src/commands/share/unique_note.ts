@@ -80,7 +80,7 @@ export async function shareOneNote(
     if (result === false) center?.failUpload();
     return result;
   } catch (error) {
-    if (showPublicationPreflightError(PublisherManager.plugin, error)) return false;
+    if (showPublicationPreflightError(PublisherManager.plugin, error, file.name)) return false;
     center?.failUpload();
     throw error;
   }
@@ -153,14 +153,20 @@ async function uploadOneNote(
 		);
 		if (update) {
       const publicationTarget = singlePublishingTarget(prop);
-      if (plugin.publicationCenter?.enabled && !settings.github.dryRun.enable && publicationTarget) {
+      const identity = publishSuccess.publicationIdentity;
+      if (plugin.publicationCenter?.enabled && !settings.github.dryRun.enable && publicationTarget && identity) {
         try {
           await plugin.publicationCenter.track(PublisherManager, publicationTarget,
-            String(frontmatter?.slug || title || file.basename), String(frontmatter?.title || title || file.basename),
+            identity.slug, identity.title,
             repository?.smartKey?.toLowerCase() === "default" ? undefined : repository?.smartKey);
         } catch {
-          plugin.publicationCenter.setState({ stage: "network", detail: "上传已完成，但未能读取对应申请。请打开 GitHub 核对后重试读取。" });
+          if (!plugin.publicationCenter.localError) {
+            plugin.publicationCenter.setState({ stage: "network", detail: "上传已完成，但未能读取对应申请。请打开 GitHub 核对后重试读取。" });
+          }
         }
+      }
+      if (plugin.publicationCenter?.enabled && !settings.github.dryRun.enable && publicationTarget && !identity) {
+        plugin.publicationCenter.setState({ stage: "idle", detail: "上传已完成，但未能从实际上传路径和转换后属性确认网站文章标识。请核对发布目录和 slug。" });
       }
       if (plugin.publicationCenter?.enabled && !publicationTarget) {
         plugin.publicationCenter.setState({ stage: "idle", detail: "多仓库上传已完成。此发布面板暂时只跟踪单仓库发布，请查看各仓库运行记录。" });

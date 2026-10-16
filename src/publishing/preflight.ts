@@ -1,8 +1,16 @@
 /** Local, content-safe checks shared by the command and the final upload guard. */
 export class PublicationPreflightError extends Error {
-  constructor(readonly line: number, readonly reason: string) {
-    super(`发布前检查未通过：原稿第 ${line} 行，${reason}`);
+  constructor(readonly line: number, readonly reason: string, public filename?: string) {
+    super(`发布前检查未通过：${filename ? `「${filename}」` : ""}原稿第 ${line} 行，${reason}`);
     this.name = 'PublicationPreflightError';
+  }
+
+  withFilename(filename: string): this {
+    if (!this.filename) {
+      this.filename = filename;
+      this.message = `发布前检查未通过：「${filename}」原稿第 ${this.line} 行，${this.reason}`;
+    }
+    return this;
   }
 }
 

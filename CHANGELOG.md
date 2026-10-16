@@ -1,3 +1,13 @@
+## 7.8.6 (2026-10-16)
+
+### Publishing fork
+
+- Verify publication using the actual uploaded path and final converted slug, including renamed files, nested paths and Unicode.
+- Report the offending filename, original line and safe reason in preflight errors; keep current local errors ahead of delayed older publication responses.
+- Preserve the existing plugin ID, settings, SecretStorage and encryption checks. No new per-note fields.
+- Validation: 70 publication tests, TypeScript and production bundle passed locally; hosted CI is checked for the exact commit before merge.
+- Distributed as a three-file update package; no GitHub Release is implied. Native Obsidian/mobile installation has not been revalidated.
+
 ## [7.8.5](https://github.com/Ravenbaar/obsidian-enveloppe/compare/7.8.4...7.8.5) (2026-10-16)
 
 ### Publishing fork

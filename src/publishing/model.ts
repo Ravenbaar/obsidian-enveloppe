@@ -133,13 +133,27 @@ export function publicSite(value: string): URL {
 }
 
 export function findPublishedArticle(entries: unknown, slug: string, site: URL): string | undefined {
-  if (!Array.isArray(entries)) return;
-  const normalize = (value: string) => decodeURIComponent(value).replace(/\/$/, "").toLowerCase();
-  const target = normalize(`posts/${encodeURIComponent(slug)}`);
+  if (!Array.isArray(entries) || typeof slug !== "string" || !slug) return;
+  const validSegments = (segments: string[]) => segments.every(segment => segment && segment !== "."
+    && segment !== ".." && !/[\\/\u0000-\u001f\u007f]/.test(segment));
+  const target = ["posts", ...slug.replace(/\/$/, "").split("/")];
+  if (!validSegments(target)) return;
+  const exact = JSON.stringify(target);
+  const legacy = JSON.stringify(target.map(segment => segment.toLowerCase()));
+  const legacyMatches = new Set<string>();
   for (const entry of entries) {
     if (typeof entry?.url !== "string") continue;
-    const url = new URL(entry.url, site);
-    if (url.origin !== site.origin || !url.pathname.startsWith(site.pathname)) continue;
-    if (normalize(url.pathname.slice(site.pathname.length)) === target) return url.href;
+    try {
+      const url = new URL(entry.url, site);
+      if (url.origin !== site.origin || url.username || url.password || url.search || url.hash
+        || !url.pathname.startsWith(site.pathname)) continue;
+      const segments = url.pathname.slice(site.pathname.length).replace(/\/$/, "").split("/").map(decodeURIComponent);
+      if (!validSegments(segments)) continue;
+      if (JSON.stringify(segments) === exact) return url.href;
+      // Retain compatibility with older saved records containing filename case,
+      // but never guess when distinct public routes have the same folded name.
+      if (JSON.stringify(segments.map(segment => segment.toLowerCase())) === legacy) legacyMatches.add(url.href);
+    } catch { /* Ignore malformed URLs/escapes rather than aborting verification. */ }
   }
+  return legacyMatches.size === 1 ? [...legacyMatches][0] : undefined;
 }

@@ -15,6 +15,7 @@ export class PublicationCenter {
   modal?: PublicationModal;
   private busy = false;
   private epoch = 0;
+  private localFailure = false;
   private retryUntil = 0;
   private startedAt?: string;
   private status?: HTMLElement;
@@ -38,6 +39,10 @@ export class PublicationCenter {
   }
 
   setState(state: PublicationState) {
+    if (!this.localFailure) this.updateState(state);
+  }
+
+  private updateState(state: PublicationState) {
     this.state = state;
     if (this.enabled) {
       this.status ??= this.plugin.addStatusBarItem();
@@ -50,9 +55,17 @@ export class PublicationCenter {
   begin(title: string) {
     if (!this.enabled) return;
     this.epoch++;
+    this.localFailure = false;
     this.startedAt = new Date().toISOString();
     this.setState({ stage: "uploading", detail: `正在上传「${title}」。` });
     this.open();
+  }
+
+  failPreflight(detail: string) {
+    // Keep the previous request for history, but it must not replace this attempt's error.
+    this.epoch++;
+    this.localFailure = true;
+    this.updateState({ stage: "failed", detail });
   }
 
   failUpload() {
@@ -61,26 +74,37 @@ export class PublicationCenter {
 
   async track(manager: GithubBranch, prop: Properties, slug: string, title: string, smartKey?: string) {
     if (!this.enabled) return;
-    const number = manager.publicationRequests.get(`${prop.owner}/${prop.repo}`);
-    if (!number) throw new Error("Upload did not identify its pull request");
-    const response = await manager.octokit.request("GET /repos/{owner}/{repo}/pulls/{pull_number}", {
-      owner: prop.owner, repo: prop.repo, pull_number: number, publication_refresh: Date.now(),
-    });
-    const pr = response.data;
-    if (pr.head.ref !== manager.branchName || pr.base.ref !== prop.branch
-      || pr.head.repo?.full_name !== `${prop.owner}/${prop.repo}`) throw new Error("Unmatched upload request");
-    this.config.last = { owner: prop.owner, repo: prop.repo, base: prop.branch, branch: pr.head.ref,
-      head: pr.head.sha, number, slug, title, smartKey, startedAt: this.startedAt };
-    this.epoch++;
-    await this.plugin.saveSettings();
-    this.setState({ stage: "checking", detail: "上传成功。云端会检查、合并并部署，正在读取进度。" });
-    await this.refresh();
+    let epoch = this.epoch;
+    try {
+      const number = manager.publicationRequests.get(`${prop.owner}/${prop.repo}`);
+      if (!number) throw new Error("Upload did not identify its pull request");
+      const response = await manager.octokit.request("GET /repos/{owner}/{repo}/pulls/{pull_number}", {
+        owner: prop.owner, repo: prop.repo, pull_number: number, publication_refresh: Date.now(),
+      });
+      if (epoch !== this.epoch || this.localFailure) return;
+      const pr = response.data;
+      if (pr.head.ref !== manager.branchName || pr.base.ref !== prop.branch
+        || pr.head.repo?.full_name !== `${prop.owner}/${prop.repo}`) throw new Error("Unmatched upload request");
+      this.config.last = { owner: prop.owner, repo: prop.repo, base: prop.branch, branch: pr.head.ref,
+        head: pr.head.sha, number, slug, title, smartKey, startedAt: this.startedAt };
+      const trackingEpoch = ++this.epoch;
+      epoch = trackingEpoch;
+      await this.plugin.saveSettings();
+      if (trackingEpoch !== this.epoch || this.localFailure) return;
+      this.setState({ stage: "checking", detail: "上传成功。云端会检查、合并并部署，正在读取进度。" });
+      await this.refresh();
+    } catch (error) {
+      if (epoch !== this.epoch || this.localFailure) return;
+      throw error;
+    }
   }
 
   async watch(record: PublicationRecord) {
-    this.epoch++;
+    const epoch = ++this.epoch;
+    this.localFailure = false;
     this.config.last = record;
     await this.plugin.saveSettings();
+    if (epoch !== this.epoch || this.localFailure) return;
     this.setState({ stage: 'checking', detail: '申请已提交，检查通过后自动部署。' });
     this.open();
   }
@@ -97,7 +121,7 @@ export class PublicationCenter {
 
   async refresh() {
     const record = this.config.last;
-    if (this.busy || !record || this.state.stage === "uploading" || Date.now() < this.retryUntil) return;
+    if (this.localFailure || this.busy || !record || this.state.stage === "uploading" || Date.now() < this.retryUntil) return;
     const epoch = this.epoch;
     this.busy = true;
     try {
@@ -178,7 +202,8 @@ export class PublicationCenter {
   async retry() {
     const record = this.config.last;
     const previous = this.state;
-    if (this.busy || !record || !previous.retry || Date.now() < this.retryUntil) return;
+    if (this.localFailure || this.busy || !record || !previous.retry || Date.now() < this.retryUntil) return;
+    const epoch = this.epoch;
     this.busy = true;
     this.modal?.render();
     try {
@@ -214,6 +239,7 @@ export class PublicationCenter {
             }
             throw error;
           }
+          if (epoch !== this.epoch) return;
           this.retryUntil = Date.now() + 20000;
           this.setState({ stage: "checking", detail: "已请求同步网站最新版本，等待重新检查；文章原稿不变。" });
           return;
@@ -222,15 +248,19 @@ export class PublicationCenter {
           ref: record.base, inputs: { pr_number: String(record.number), dry_run: "false" },
         });
       }
+      if (epoch !== this.epoch) return;
       this.retryUntil = Date.now() + 20000;
       this.setState({ stage: pr.merged ? "deploying" : "checking", detail: "重试请求已提交，等待云端运行。" });
     } catch (error) {
+      if (epoch !== this.epoch) return;
       const status = (error as { status?: number }).status;
       this.setState(status === 401 || status === 403 ? {
         stage: "permission", detail: "重试需要现有专用 Token 的 Actions 读写权限。请补充权限后刷新。",
       } : { stage: "network", detail: "重试未确认成功，或申请已有更新。请刷新并核对运行记录后再操作。" });
     } finally { this.busy = false; this.modal?.render(); }
   }
+
+  get localError(): boolean { return this.localFailure; }
 
   get working(): boolean { return this.busy || Date.now() < this.retryUntil; }
 }
@@ -258,7 +288,7 @@ class PublicationModal extends Modal {
     el.empty();
     el.addClass("enveloppe-publication");
     el.createEl("h2", { text: "文章发布" });
-    if (center.config.last && center.state.stage !== "uploading") el.createEl("p", { text: `最近发布：${center.config.last.title}`, cls: "publication-title" });
+    if (center.config.last && !center.localError && center.state.stage !== "uploading") el.createEl("p", { text: `最近发布：${center.config.last.title}`, cls: "publication-title" });
     const status = el.createDiv({ cls: `publication-state is-${center.state.stage}` });
     status.setAttribute("role", "status");
     status.createEl("h3", { text: STAGE_LABELS[center.state.stage] });
@@ -268,10 +298,10 @@ class PublicationModal extends Modal {
       .onClick(() => window.open(center.state.articleUrl, "_blank", "noopener,noreferrer")));
     if (center.state.retry) actions.addButton(button => button.setButtonText(center.state.retry === "check" ? "重试检查" : "重试发布")
       .setDisabled(center.working).onClick(() => center.retry()));
-    actions.addButton(button => button.setButtonText("刷新进度").setDisabled(center.working)
+    actions.addButton(button => button.setButtonText("刷新进度").setDisabled(center.working || center.localError)
       .onClick(() => center.refresh()));
     const record = center.config.last;
-    if (record) {
+    if (record && !center.localError) {
       const base = `https://github.com/${encodeURIComponent(record.owner)}/${encodeURIComponent(record.repo)}`;
       const links = el.createDiv({ cls: "publication-links" });
       for (const [text, url] of [["查看发布申请", `${base}/pull/${record.number}`],

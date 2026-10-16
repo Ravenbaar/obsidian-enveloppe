@@ -31,6 +31,7 @@ import { deleteFromGithub } from "src/GitHub/delete";
 import { FilesManagement } from "src/GitHub/files";
 import type Enveloppe from "src/main";
 import { assertProtectionPreserved } from 'src/publishing/preflight';
+import { publishedIdentityFromSource } from 'src/publishing/published-identity';
 import { checkPublicationSource, showPublicationPreflightError } from 'src/publishing/preflight-source';
 import {
 	checkEmptyConfiguration,
@@ -192,7 +193,7 @@ export default class Publisher {
 		try {
 			checkedSource = await checkPublicationSource(this.plugin, file, repo.repository, repo.frontmatter, filePath);
 		} catch (error) {
-			showPublicationPreflightError(this.plugin, error);
+			showPublicationPreflightError(this.plugin, error, file.name);
 			throw error;
 		}
 		if (
@@ -257,9 +258,11 @@ export default class Publisher {
 		text = await mainConverting(text, file, frontmatter, linkedFiles, multiProperties);
 		if (checkedSource) {
 			try { assertProtectionPreserved(checkedSource.protection, text, parseYaml, filePath); }
-			catch (error) { showPublicationPreflightError(this.plugin, error); throw error; }
+			catch (error) { showPublicationPreflightError(this.plugin, error, file.name); throw error; }
 		}
 		const path = multiProperties.filepath;
+		const publicationIdentity = this.settings.publishing?.enabled
+			? publishedIdentityFromSource(text, path, parseYaml) : undefined;
 		const props = Array.isArray(repo.frontmatter) ? repo.frontmatter : [repo.frontmatter];
 		let multiRepMsg = "";
 		for (const prop of props) {
@@ -297,7 +300,7 @@ export default class Publisher {
 			updated.push(deleted.uploaded);
 			fileError.push(...deleted.error);
 		}
-		return { deleted: fileDeleted[0], uploaded: updated[0], error: fileError };
+		return { deleted: fileDeleted[0], uploaded: updated[0], error: fileError, publicationIdentity };
 	}
 
 	/**

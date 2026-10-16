@@ -107,7 +107,7 @@ function fixture(source = note('<!-- encrypt -->\nPRIVATE_BODY_CANARY')) {
   const prop = { owner: 'fixture', repo: 'blog', branch: 'main', automaticallyMergePR: false };
   const plugin = { settings: { publishing: { enabled: true }, github: { dryRun: { enable: false } }, plugin: { shareKey: 'share' } },
     app: { vault: { read: async () => source, cachedRead: () => { throw new Error('Must read fresh source'); } } },
-    console: { noticeMobile() {} }, publicationCenter: { enabled: true, begin() {}, failUpload() {}, setState: state => states.push(state) } };
+    console: { noticeMobile() {} }, publicationCenter: { enabled: true, begin() {}, failUpload() {}, setState: state => states.push(state), failPreflight: detail => states.push({ stage: 'failed', detail }) } };
   const obsidian = { parseYaml, Notice: class { constructor(text) { notices.push(text); } }, Platform: {} };
   const helpers = load('src/publishing/preflight-source.ts', { obsidian,
     'src/conversion/file_path': { getReceiptFolder: () => 'src/content/posts/article.md' } });
@@ -187,4 +187,34 @@ test('core Publisher.publish guards direct/deep uploads and validates final tran
       assert.equal(conversions.length, mode === 'invalid-source' ? 0 : 1);
     }
   }
+});
+
+test('batch failure identifies only the failing filename, original line and safe reason', async () => {
+  const f = fixture();
+  const first = { ...f.file, name: 'First.md', path: 'PrivateFolder/First.md' };
+  const second = { ...f.file, name: 'Second.md', path: 'PrivateFolder/Second.md' };
+  f.plugin.app.vault.read = async file => file === first ? note(valid) : note('<!-- encrypt -->\nPRIVATE_BODY_CANARY');
+  await f.helpers.checkPublicationBatch(f.plugin, [first, second], null, {});
+  assert.match(f.notices[0], /Second.md/);
+  assert.match(f.notices[0], /原稿第 5 行/);
+  assert(!f.notices[0].includes('PrivateFolder'));
+  assert(!f.notices[0].includes('PRIVATE_BODY_CANARY'));
+});
+
+
+test('conversion errors preserve the offending filename through nested handlers and report once', async () => {
+  const f = fixture(note(valid));
+  f.manager.publish = async () => {
+    try { await f.helpers.checkPublicationSource({ ...f.plugin,
+      app: { vault: { read: async () => note('<!-- encrypt -->\nPRIVATE_BODY_CANARY') } } },
+      { ...f.file, name: 'Embedded.md' }, null, {}); }
+    catch (error) {
+      f.helpers.showPublicationPreflightError(f.plugin, error, 'Embedded.md');
+      throw error;
+    }
+  };
+  assert.equal(await f.command.shareOneNote(f.manager, f.file, null, {}), false);
+  assert.equal(f.notices.length, 1);
+  assert.match(f.states.at(-1).detail, /Embedded.md/);
+  assert.match(f.notices[0], /原稿第 5 行/);
 });
