@@ -28,7 +28,7 @@ function fixture() {
       } };
     } });
   const plugin = { app: {}, settings: { publishing: { enabled: false, siteUrl: 'https://example.com/', last: record } },
-    addCommand() {}, register() {}, saveSettings: async () => {}, reloadOctokit: async () => ({ octokit: {
+    addCommand() {}, register() {}, addStatusBarItem: () => ({ setText() {} }), saveSettings: async () => {}, reloadOctokit: async () => ({ octokit: {
       request: async (route, params) => {
         calls.push({ route, params });
         if (route.endsWith('/update-branch')) { if (state.writeFailure) throw { status: state.writeFailure }; return { data: {} }; }
@@ -202,4 +202,86 @@ test('a rejected branch synchronization is cleared and cannot adopt a later unre
   await f.center.retry();
   assert.equal(f.record.syncBase, undefined);
   assert.equal(f.calls.filter(call => call.route.startsWith('POST ')).length, 0);
+});
+
+test('local preflight failure invalidates in-flight old progress and blocks refresh until a new upload', async () => {
+  const f = fixture();
+  let resume;
+  const original = f.center.api.bind(f.center);
+  f.center.api = async (...args) => { await new Promise(resolve => { resume = resolve; }); return original(...args); };
+  const pending = f.center.refresh();
+  await Promise.resolve();
+  f.center.failPreflight('Synthetic.md：原稿第 5 行，缺少结束标记。');
+  f.center.api = original;
+  resume();
+  await pending;
+  assert.equal(f.center.state.stage, 'failed');
+  assert.match(f.center.state.detail, /Synthetic.md/);
+  const before = f.calls.length;
+  await f.center.refresh();
+  assert.equal(f.calls.length, before);
+  assert.match(f.center.state.detail, /Synthetic.md/);
+});
+
+test('new upload clears local failure and can resume tracking', async () => {
+  const f = fixture();
+  f.center.config.enabled = true;
+  f.center.setState = state => { f.center.state = state; };
+  f.center.open = () => {};
+  f.center.failPreflight('Synthetic.md invalid');
+  f.center.begin('Fixed synthetic article');
+  assert.equal(f.center.localError, false);
+  assert.equal(f.center.state.stage, 'uploading');
+  f.center.setState({ stage: 'checking', detail: 'Current upload' });
+  await f.center.refresh();
+  assert.equal(f.center.state.stage, 'live');
+});
+
+test('old track request success or rejection cannot overwrite a newer local failure', async () => {
+  for (const rejected of [false, true]) {
+    const f = fixture();
+    f.center.config.enabled = true;
+    f.center.setState = state => { f.center.state = state; };
+    let resolve, reject;
+    const manager = { publicationRequests: new Map([['owner/blog', 3]]), branchName: f.record.branch,
+      octokit: { request: () => new Promise((yes, no) => { resolve = yes; reject = no; }) } };
+    const pending = f.center.track(manager, { owner: 'owner', repo: 'blog', branch: 'main' }, 'new', 'New');
+    f.center.failPreflight('Second.md invalid');
+    if (rejected) reject(new Error('Synthetic network error')); else resolve({ data: f.pr });
+    await pending;
+    assert.match(f.center.state.detail, /Second.md/);
+    assert.equal(f.center.config.last.slug, 'article');
+  }
+});
+
+test('in-flight retry response cannot replace a newer preflight error', async () => {
+  for (const failed of [false, true]) {
+    const f = fixture();
+    f.center.state = { stage: 'failed', detail: 'Prior deployment failed', retry: 'deploy' };
+    const original = f.center.api.bind(f.center);
+    let resolve, reject;
+    f.center.api = async (...args) => {
+      if (args[1] === 'POST') return new Promise((yes, no) => { resolve = yes; reject = no; });
+      return original(...args);
+    };
+    const pending = f.center.retry();
+    while (!resolve) await Promise.resolve();
+    f.center.failPreflight('Current.md invalid');
+    if (failed) reject({ status: 503 }); else resolve({});
+    await pending;
+    assert.match(f.center.state.detail, /Current.md/);
+    assert.equal(f.center.state.stage, 'failed');
+  }
+});
+
+
+test('direct stale callers cannot replace a local failure while intentional new watch can', async () => {
+  const f = fixture();
+  f.center.failPreflight('Current.md invalid');
+  f.center.setState({ stage: 'checking', detail: 'Late old management result' });
+  assert.match(f.center.state.detail, /Current.md/);
+  f.center.open = () => {};
+  await f.center.watch({ ...f.record, slug: 'intentional-new-target' });
+  assert.equal(f.center.localError, false);
+  assert.equal(f.center.state.stage, 'checking');
 });

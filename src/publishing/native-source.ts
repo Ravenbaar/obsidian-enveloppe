@@ -3,7 +3,8 @@ import { getFrontMatterInfo, parseYaml, stringifyYaml, type TFile } from 'obsidi
 import { getReceiptFolder } from 'src/conversion/file_path';
 import { checkIfRepoIsInAnother, isShared } from 'src/utils/data_validation_test';
 import { frontmatterFromFile, getProperties } from 'src/utils/parse_frontmatter';
-import { isPublishingArticle, PublicationPreflightError } from './preflight';
+import { PublicationPreflightError } from './preflight';
+import { publishedSourcePath } from './published-identity';
 import { shieldNativeWikilinks, type NativeOccurrence } from './native-wikilinks';
 
 export function prepareNativeWikilinks(source: string, file: TFile, properties: MultiProperties) {
@@ -25,9 +26,10 @@ export function prepareNativeWikilinks(source: string, file: TFile, properties: 
     const targetProperties = getProperties(plugin, repository, frontmatter);
     if (!checkIfRepoIsInAnother(properties.frontmatter.prop, targetProperties)) return;
     const publishedPath = getReceiptFolder(target, repository, plugin, targetProperties);
-    if (!isPublishingArticle(true, publishedPath)) return;
-    const id = typeof frontmatter?.slug === 'string' && frontmatter.slug
-      ? frontmatter.slug : publishedPath.slice('src/content/posts/'.length);
+    // The site indexes this public source path even when an explicit slug is
+    // changed by output conversion. Never copy a vault path or guess from title.
+    const id = publishedSourcePath(publishedPath);
+    if (!id) return;
     return { id, encrypted: frontmatter?.encrypted === true };
   }, linkpath => {
     const target = destination(linkpath);

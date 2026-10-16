@@ -75,7 +75,7 @@ test('stale cache offsets never rewrite a different source occurrence', () => {
   assert.equal(shield.restore(shield.text), source);
 });
 
-test('native adapter exports only shared same-repository public paths or explicit slugs', () => {
+test('native adapter exports only shared same-repository public source paths, including explicit slugs', () => {
   const source = '[[Public]] [[Locked#Heading]] [[Private]] [[Draft]] [[OtherRepo]] [[Outside]]';
   const notes = Object.fromEntries(['Public', 'Locked', 'Private', 'Draft', 'OtherRepo', 'Outside'].map(name =>
     [name, { path: `PrivateVaultFolder/${name}.md`, name: name + '.md', extension: 'md', basename: name }]));
@@ -94,7 +94,7 @@ test('native adapter exports only shared same-repository public paths or explici
   });
   const shield = prepareNativeWikilinks(source, { path: 'Source.md' }, { plugin, repository: null, frontmatter: { prop: {} } });
   const output = shield.restore(shield.text);
-  assert.equal(output, '[[published/Public.md\\|Public]] [[locked-id\\|Locked > Heading]] [[Private]] [[Draft]] [[OtherRepo]] [[Outside]]');
+  assert.equal(output, '[[published/Public.md\\|Public]] [[published/Locked.md\\|Locked > Heading]] [[Private]] [[Draft]] [[OtherRepo]] [[Outside]]');
   assert(!output.includes('PRIVATE_METADATA_CANARY') && !output.includes('PrivateVaultFolder'));
 });
 
