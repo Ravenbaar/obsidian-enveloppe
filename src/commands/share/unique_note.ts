@@ -10,6 +10,7 @@ import {
 import type { GithubBranch } from "src/GitHub/branch";
 import type Enveloppe from "src/main";
 import { singlePublishingTarget } from 'src/publishing/model';
+import { checkPublicationSource, showPublicationPreflightError } from 'src/publishing/preflight-source';
 import { ListChangedFiles } from "src/settings/modals/list_changed";
 import { createLink, createListEdited, getSettingsOfMetadataExtractor } from "src/utils";
 import {
@@ -79,6 +80,7 @@ export async function shareOneNote(
     if (result === false) center?.failUpload();
     return result;
   } catch (error) {
+    if (showPublicationPreflightError(PublisherManager.plugin, error)) return false;
     center?.failUpload();
     throw error;
   }
@@ -105,6 +107,7 @@ async function uploadOneNote(
 		PublisherManager.settings.plugin.shareKey
 	);
 	const prop = getProperties(plugin, repository, frontmatter);
+	await checkPublicationSource(plugin, file, repository, prop);
   if (plugin.publicationCenter?.enabled && (Array.isArray(prop) ? prop : [prop]).some(item => item.automaticallyMergePR)) {
     plugin.publicationCenter.setState({ stage: "failed", detail: "发布中心需要等待云端检查。请先关闭仓库的插件直接自动合并选项。" });
     return false;
@@ -206,3 +209,4 @@ export async function shareActiveFile(
 		);
 	}
 }
+

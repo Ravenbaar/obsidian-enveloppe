@@ -11,6 +11,7 @@ import {
 import type { GithubBranch } from "src/GitHub/branch";
 import { deleteFromGithub } from "src/GitHub/delete";
 import type Enveloppe from "src/main";
+import { checkPublicationSource, showPublicationPreflightError } from 'src/publishing/preflight-source';
 import { ListChangedFiles } from "src/settings/modals/list_changed";
 import { createListEdited, getSettingsOfMetadataExtractor } from "src/utils";
 import { checkRepositoryValidityWithProperties } from "src/utils/data_validation_test";
@@ -110,6 +111,9 @@ export async function shareAllMarkedNotes(
 		const fileError: string[] = [];
 		const listStateUploaded: UploadedFiles[] = [];
 		if (sharedFiles.length > 0) {
+			for (const sharedFile of sharedFiles) {
+				await checkPublicationSource(plugin, sharedFile, monoRepo.repository, prop);
+			}
 			if (createGithubBranch) {
 				const isValid = await checkRepositoryValidityWithProperties(
 					PublisherManager,
@@ -177,6 +181,7 @@ export async function shareAllMarkedNotes(
 			}
 		}
 	} catch (error) {
+		if (showPublicationPreflightError(plugin, error)) return false;
 		plugin.console.trace(error);
 		const errorFrag = document.createDocumentFragment();
 		const errorSpan = errorFrag.createSpan({
@@ -190,3 +195,4 @@ export async function shareAllMarkedNotes(
 		statusBar.error(prop);
 	}
 }
+

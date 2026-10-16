@@ -20,6 +20,8 @@ import { bakeEmbeds, convertInlineDataview } from "src/conversion/compiler/embed
 import { convertToInternalGithub, convertWikilinks } from "src/conversion/links";
 import type Enveloppe from "src/main";
 import { isFolderNote } from "src/utils/data_validation_test";
+import { isPublishingArticle } from 'src/publishing/preflight';
+import { addPublishedIdentity, prepareNativeWikilinks } from 'src/publishing/native-source';
 
 import findAndReplaceText from "./find_and_replace_text";
 
@@ -211,9 +213,17 @@ export async function mainConverting(
 	properties: MultiProperties
 ): Promise<string> {
 	const { plugin } = properties;
-	if (properties.frontmatter.general.removeEmbed === "bake")
+	const blogArticle = isPublishingArticle(plugin.settings.publishing?.enabled, properties.filepath);
+	// Redact the actual author text before hiding links from legacy converters.
+	// If a replacement shifts a cached position, native resolution safely falls
+	// back to that author's (already redacted) spelling for the website to resolve.
+	if (blogArticle) text = findAndReplaceText(text, plugin, false);
+	const native = blogArticle
+		? prepareNativeWikilinks(text, file, properties) : undefined;
+	if (native) text = native.text;
+	if (!native && properties.frontmatter.general.removeEmbed === "bake")
 		text = await bakeEmbeds(file, new Set(), properties, null, linkedFiles);
-	text = findAndReplaceText(text, plugin, false);
+	if (!native) text = findAndReplaceText(text, plugin, false);
 	text = await processYaml(file, frontmatter, text, properties);
 	text = await convertToInternalGithub(text, linkedFiles, file, frontmatter, properties);
 	text = convertWikilinks(
@@ -227,5 +237,7 @@ export async function mainConverting(
 	text = await convertInlineDataview(text, plugin, file);
 	text = addHardLineBreak(text, plugin, properties.frontmatter.general);
 
+	if (native) text = addPublishedIdentity(native.restore(text), findAndReplaceText(file.basename, plugin, false));
 	return findAndReplaceText(text, plugin, true);
 }
+

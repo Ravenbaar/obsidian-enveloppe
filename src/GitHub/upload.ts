@@ -18,6 +18,7 @@ import {
 	type MetadataCache,
 	Notice,
 	normalizePath,
+	parseYaml,
 	setIcon,
 	TFile,
 	TFolder,
@@ -29,6 +30,8 @@ import { getImagePath, getReceiptFolder } from "src/conversion/file_path";
 import { deleteFromGithub } from "src/GitHub/delete";
 import { FilesManagement } from "src/GitHub/files";
 import type Enveloppe from "src/main";
+import { assertProtectionPreserved } from 'src/publishing/preflight';
+import { checkPublicationSource, showPublicationPreflightError } from 'src/publishing/preflight-source';
 import {
 	checkEmptyConfiguration,
 	checkIfRepoIsInAnother,
@@ -185,6 +188,13 @@ export default class Publisher {
 			repo.frontmatter
 		);
 		if (!isShared(frontmatter, this.settings, file, repo.repository)) return false;
+		let checkedSource;
+		try {
+			checkedSource = await checkPublicationSource(this.plugin, file, repo.repository, repo.frontmatter, filePath);
+		} catch (error) {
+			showPublicationPreflightError(this.plugin, error);
+			throw error;
+		}
 		if (
 			!(await shareFiles.wasEditedSinceLastSync(file, repo.repository, filePath)) &&
 			fileHistory.length > 0
@@ -243,8 +253,12 @@ export default class Publisher {
 		let embedFiles = shareFiles.getSharedEmbed(file, frontmatterSettings);
 		embedFiles = await shareFiles.getMetadataLinks(file, embedFiles, frontmatterSettings);
 		const linkedFiles = shareFiles.getLinkedByEmbedding(file);
-		let text = await this.vault.cachedRead(file);
+		let text = checkedSource?.source ?? await this.vault.cachedRead(file);
 		text = await mainConverting(text, file, frontmatter, linkedFiles, multiProperties);
+		if (checkedSource) {
+			try { assertProtectionPreserved(checkedSource.protection, text, parseYaml, filePath); }
+			catch (error) { showPublicationPreflightError(this.plugin, error); throw error; }
+		}
 		const path = multiProperties.filepath;
 		const props = Array.isArray(repo.frontmatter) ? repo.frontmatter : [repo.frontmatter];
 		let multiRepMsg = "";
@@ -710,3 +724,4 @@ export default class Publisher {
 		return newLinkedFiles;
 	}
 }
+
