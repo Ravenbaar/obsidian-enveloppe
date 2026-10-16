@@ -4,6 +4,7 @@ import { type Command, Notice } from "obsidian";
 import type { GithubBranch } from "src/GitHub/branch";
 import { shareAllMarkedNotes } from "src/commands";
 import type Enveloppe from "src/main";
+import { checkPublicationBatch } from 'src/publishing/preflight-source';
 import { checkRepositoryValidityWithProperties } from "src/utils/data_validation_test";
 import {
 	frontmatterSettingsRepository,
@@ -98,6 +99,7 @@ export async function shareNewNote(
 			newlySharedNotes.length
 		);
 		if (!isValid) return false;
+		if (!await checkPublicationBatch(plugin, newlySharedNotes, monoRepo.repository, monoRepo.frontmatter)) return false;
 		await PublisherManager.newBranch(monoRepo.frontmatter);
 		await shareAllMarkedNotes(
 			PublisherManager,
@@ -111,3 +113,4 @@ export async function shareNewNote(
 	}
 	new Notice(i18next.t("informations.noNewNote"), PublisherManager.noticeLength);
 }
+

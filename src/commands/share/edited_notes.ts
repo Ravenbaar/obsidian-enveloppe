@@ -3,6 +3,7 @@ import i18next from "i18next";
 import { type Command, Notice, type TFile } from "obsidian";
 import type { GithubBranch } from "src/GitHub/branch";
 import type Enveloppe from "src/main";
+import { checkPublicationBatch } from 'src/publishing/preflight-source';
 import { checkRepositoryValidityWithProperties } from "src/utils/data_validation_test";
 import {
 	frontmatterSettingsRepository,
@@ -101,6 +102,7 @@ async function shareAllEditedNotes(
 			newlySharedNotes.length
 		);
 		if (!isValid) return false;
+		if (!await checkPublicationBatch(plugin, newlySharedNotes, monoRepo.repository, monoRepo.frontmatter)) return false;
 		await PublisherManager.newBranch(monoRepo.frontmatter);
 		await shareAllMarkedNotes(
 			PublisherManager,
@@ -152,6 +154,7 @@ async function shareOnlyEdited(
 			newlySharedNotes.length
 		);
 		if (!isValid) return false;
+		if (!await checkPublicationBatch(PublisherManager.plugin, newlySharedNotes, monoRepo.repository, prop)) return false;
 		await PublisherManager.newBranch(prop);
 		await shareAllMarkedNotes(
 			PublisherManager,
@@ -213,3 +216,4 @@ export async function shareEditedOnlyCallback(
 		},
 	} as Command;
 }
+
